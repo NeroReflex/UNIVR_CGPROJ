@@ -2,8 +2,6 @@
 
 precision highp float;
 
-#define LIGHTING_IN_TANGENTSPACE 0
-
 #define SMOOTH_BIAS 1
 
 layout(location = 0) in vec2 v_TexCoord;
@@ -12,8 +10,8 @@ uniform sampler2D u_GDiffuse;
 uniform sampler2D u_GSpecular;
 uniform sampler2D u_GNormalTangentSpace;
 uniform sampler2D u_GPosition;
-uniform sampler2D u_GTangent;
 uniform sampler2D u_GNormal;
+uniform sampler2D u_GTangent;
 
 uniform sampler2D u_LightpassInput;
 
@@ -30,6 +28,11 @@ layout(location = 0) out vec3 o_LightpassOutput;
 
 void main() {
     vec3 vNormal_worldspace = texture(u_GNormal, v_TexCoord).rgb;
+    vec3 vTangent_worldspace = texture(u_GTangent, v_TexCoord).rgb;
+    vec3 vBitangent_worldspace = normalize(cross(vNormal_worldspace, vTangent_worldspace));
+    mat3 TBN = mat3(vTangent_worldspace, vBitangent_worldspace, vNormal_worldspace);
+    mat3 invTBN = transpose(TBN);
+
     vec3 vDiffuse = texture(u_GDiffuse, v_TexCoord).rgb;
     vec4 vPosition_worldspace = vec4(texture(u_GPosition, v_TexCoord).xyz, 1.0);
 
@@ -65,26 +68,9 @@ void main() {
 
     float currentDepth = lightSpacePos.z * 0.5 + 0.5;
 
-    vec3 vDir = normalize(vPosition_worldspace.xyz - u_LightPosition);
-
-#if LIGHTING_IN_TANGENTSPACE
-    vec3 tangent_worldspace = texture(u_GTangent, v_TexCoord).xyz;
-    vec3 bitangent_worldspace = cross(vNormal_worldspace, tangent_worldspace);
-    mat3 TBN = mat3(tangent_worldspace, bitangent_worldspace, vNormal_worldspace);
-
-    mat3 invTBN = transpose(TBN);
-
-    //vec3 vLightDir_worldspace = normalize(u_LightPosition - vPosition_worldspace.xyz);
+    vec3 vDir = normalize(invTBN * normalize(vPosition_worldspace.xyz - u_LightPosition));
     vec3 vLightDir_tangentspace = normalize(invTBN * u_LightDirection);
-
-    // vDir has to be in tangent space too
-    vDir = normalize(invTBN * vDir);
-
     float fCosine = max(dot(vLightDir_tangentspace, vDir), 0.0);
-#else
-    // vDir is already in worldspace
-    float fCosine = max(dot(u_LightDirection, vDir), 0.0);
-#endif
 
     float shadow = currentDepth - closestDepth > bias ? 0.0 : fCosine;
 

@@ -2,8 +2,6 @@
 
 precision highp float;
 
-#define LIGHTING_IN_TANGENTSPACE 0
-
 #define USE_PCF_SHADOWS 1
 
 #define SMOOTH_BIAS 1
@@ -43,7 +41,12 @@ float pcf_shadow(float currentDepth, float bias, ivec2 center) {
 #endif
 
 void main() {
-    vec3 vNormal_worldspace = normalize(texture(u_GNormal, v_TexCoord).rgb);
+    vec3 vNormal_worldspace = texture(u_GNormal, v_TexCoord).rgb;
+    vec3 vTangent_worldspace = texture(u_GTangent, v_TexCoord).rgb;
+    vec3 vBitangent_worldspace = normalize(cross(vNormal_worldspace, vTangent_worldspace));
+    mat3 TBN = mat3(vTangent_worldspace, vBitangent_worldspace, vNormal_worldspace);
+    mat3 invTBN = transpose(TBN);
+
     vec3 vDiffuse = texture(u_GDiffuse, v_TexCoord).rgb;
     vec4 vPosition_worldspace = vec4(texture(u_GPosition, v_TexCoord).xyz, 1.0);
 
@@ -52,21 +55,8 @@ void main() {
     // load the input lightpass color: this is the light accumulated so far
     vec3 result = texture(u_LightpassInput, v_TexCoord).rgb;
 
-    vec3 normal = vNormal_worldspace;
-    vec3 light_dir = u_LightDir;
-
-#if LIGHTING_IN_TANGENTSPACE
-    vec3 tangent = normalize(texture(u_GTangent, v_TexCoord).xyz);
-    vec3 bitangent = normalize(cross(normal, tangent));
-    mat3 TBN = mat3(tangent, bitangent, normal);
-    
-    mat3 invTBN = transpose(TBN);
-
-    normal = normalize(invTBN * normal);
-    light_dir = normalize(invTBN * light_dir);
-#else
-    // nothing to do, already in world space
-#endif
+    vec3 normal = normalize(texture(u_GNormalTangentSpace, v_TexCoord).xyz);
+    vec3 light_dir = normalize(invTBN * u_LightDir);
 
     vec4 lightSpacePos = u_LightSpaceMatrix * vPosition_worldspace;
     lightSpacePos /= lightSpacePos.w;
@@ -80,8 +70,7 @@ void main() {
     vec2 texelPos = shadowTexCoord * vec2(float(shadowTextureDimensions.x), float(shadowTextureDimensions.y));
 
     // accumulate the contribution of the current directional light
-    vec3 ldir = normalize(light_dir);
-    float NdotL_neg = dot(normal, -ldir);
+    float NdotL_neg = dot(normal, -light_dir);
     float NdotL = max(NdotL_neg, 0.0);
 
     //float closestDepth = texture(u_LDepthTexture, shadowTexCoord).r;
