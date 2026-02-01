@@ -1,6 +1,7 @@
 #pragma once
 
 #include "OpenGL.hpp"
+#include <string>
 
 enum class TextureFormat {
     TEXTURE_FORMAT_RGBA8,
@@ -60,7 +61,17 @@ class Texture {
             TextureFilterMode min_filter,
             TextureFilterMode mag_filter
         ) noexcept;
-        
+
+        // Create a 2D texture from an image file (supports .png, .jpg, .jpeg).
+        // If the file is a PNG or JPG the image will be loaded with stb_image
+        // and mipmaps will be generated automatically.
+        static Texture* Create2DTextureFromFile(
+            const std::string& filename,
+            TextureWrapMode wrap_s,
+            TextureWrapMode wrap_t,
+            TextureFilterMode min_filter,
+            TextureFilterMode mag_filter
+        ) noexcept;
 
         inline GLsizei getWidth() const noexcept { return m_width; }
         inline GLsizei getHeight() const noexcept { return m_height; }

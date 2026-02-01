@@ -196,7 +196,7 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
 
             // bind gbuffer position and world-space normal textures
             // gNormal is at color attachment 4 (world-space normal)
-            m_ssao_program->framebufferColorAttachment("u_GNormal", GL_TEXTURE0, *m_gbuffer, 4);
+            //m_ssao_program->framebufferColorAttachment("u_GNormal", GL_TEXTURE0, *m_gbuffer, 4);
             m_ssao_program->framebufferColorAttachment("u_GPosition", GL_TEXTURE1, *m_gbuffer, 3);
 
             // bind SSAO noise texture

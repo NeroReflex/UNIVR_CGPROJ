@@ -72,7 +72,7 @@ void Mesh::draw(
 
     // Bind the VAO which already has the vertex attribute state
     glBindVertexArray(m_vao);
-    glDrawElements(GL_TRIANGLES, m_ibo_count, GL_UNSIGNED_SHORT, nullptr);
+    glDrawElements(GL_TRIANGLES, m_ibo_count, GL_UNSIGNED_INT, nullptr);
     glBindVertexArray(0);
 }
 

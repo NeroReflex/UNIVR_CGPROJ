@@ -1,6 +1,11 @@
 #include "Texture.hpp"
 
 #include <iostream>
+#include <string>
+#include <algorithm>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 Texture::Texture(
     GLuint textureId,
@@ -146,4 +151,74 @@ Texture* Texture::Create2DTexture(
     glBindTexture(GL_TEXTURE_2D, 0);
 
     return new Texture(textureId, width, height);
+}
+
+Texture* Texture::Create2DTextureFromFile(
+    const std::string& filename,
+    TextureWrapMode wrap_s,
+    TextureWrapMode wrap_t,
+    TextureFilterMode min_filter,
+    TextureFilterMode mag_filter
+) noexcept {
+    // only handle common image formats via stb (png, jpg, jpeg)
+    std::string ext;
+    auto pos = filename.find_last_of('.');
+    if (pos != std::string::npos) ext = filename.substr(pos + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    if (ext != "png" && ext != "jpg" && ext != "jpeg") {
+        std::cerr << "Create2DTextureFromFile: unsupported extension for file: " << filename << std::endl;
+        return nullptr;
+    }
+
+    // load with stb_image
+    stbi_set_flip_vertically_on_load(1);
+    int width = 0, height = 0, channels = 0;
+    unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
+    if (!data) {
+        std::cerr << "Failed to load image: " << filename << "\n";
+        return nullptr;
+    }
+
+    GLuint textureId = Texture::CreateTexture();
+    glBindTexture(GL_TEXTURE_2D, textureId);
+
+    GLenum internal = GL_RGBA8;
+    GLenum fmt = GL_RGBA;
+
+    if (channels == 3) {
+        internal = GL_RGB8;
+        fmt = GL_RGB;
+    } else if (channels == 4) {
+        internal = GL_RGBA8;
+        fmt = GL_RGBA;
+    } else if (channels == 1) {
+        internal = GL_R8;
+        fmt = GL_RED;
+    }
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (wrap_s == TextureWrapMode::TEXTURE_WRAP_MODE_REPEAT) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (wrap_t == TextureWrapMode::TEXTURE_WRAP_MODE_REPEAT) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+
+    GLenum minf = (min_filter == TextureFilterMode::TEXTURE_FILTER_MODE_NEAREST) ? GL_NEAREST : GL_LINEAR;
+    GLenum magf = (mag_filter == TextureFilterMode::TEXTURE_FILTER_MODE_NEAREST) ? GL_NEAREST : GL_LINEAR;
+    // When generating mipmaps, use a mipmap-capable min filter
+    if (minf == GL_LINEAR) {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    } else {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+    }
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magf);
+
+    // upload and generate mipmaps
+    glTexImage2D(GL_TEXTURE_2D, 0, internal, width, height, 0, fmt, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    stbi_image_free(data);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    std::cout << "Loaded texture from " << filename << " -> id=" << textureId << " (" << width << "x" << height << ") with mipmaps" << std::endl;
+
+    return new Texture(textureId, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
 }

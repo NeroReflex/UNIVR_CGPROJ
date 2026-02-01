@@ -9,7 +9,8 @@
 #include "Pipelines/ShadowedPipeline.hpp"
 #include "Pipeline.hpp"
 
-#define STB_IMAGE_IMPLEMENTATION
+// This is done in Texture.cpp
+//#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 #define GLFW_INCLUDE_NONE

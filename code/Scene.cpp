@@ -6,6 +6,15 @@
 #include <vector>
 #include <cstdint>
 
+#include "Scene.hpp"
+
+#include <assert.h>
+#include <iostream>
+#include <filesystem>
+#include <vector>
+#include <cstdint>
+#include <algorithm>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -131,17 +140,18 @@ void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noe
             GLuint total_indices = 0;
             for (unsigned int fi = 0; fi < mesh->mNumFaces; ++fi) total_indices += mesh->mFaces[fi].mNumIndices;
 
-            const GLsizeiptr index_buffer_size = static_cast<GLsizeiptr>(total_indices * sizeof(uint16_t));
+            // Use 32-bit indices: large models (like many glTF exports) can exceed 65535 vertices.
+            const GLsizeiptr index_buffer_size = static_cast<GLsizeiptr>(total_indices * sizeof(uint32_t));
             const GLuint ibo = Mesh::CreateElementBuffer(nullptr, index_buffer_size);
 
             {
                 void *iptr = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, index_buffer_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
                 assert(iptr != nullptr && "Failed to map index buffer");
-                uint16_t *idst = static_cast<uint16_t*>(iptr);
+                uint32_t *idst = static_cast<uint32_t*>(iptr);
                 for (GLuint fi = 0; fi < mesh->mNumFaces; ++fi) {
                     const aiFace &face = mesh->mFaces[fi];
                     for (GLuint k = 0; k < face.mNumIndices; ++k) {
-                        idst[0] = static_cast<uint16_t>(face.mIndices[k]);
+                        idst[0] = static_cast<uint32_t>(face.mIndices[k]);
                         ++idst;
                     }
                 }
@@ -223,42 +233,58 @@ std::shared_ptr<Texture> Scene::load_texture(const std::filesystem::path& textur
         return nullptr;
     }
 
-    // load the texture and check for errors
-    DDSLoadResult load_result;
-    const auto dds_resource = load_dds(texture_path, load_result);
-    if (!dds_resource) {
-        std::cerr << "Texture couldn't be loaded: " << (int)load_result << std::endl;
-        return nullptr;
-    }
-
     // See https://github.com/KhronosGroup/3D-Formats-Guidelines/blob/main/KTXDeveloperGuide.md for a nice table of runtime GL formats
-    const auto texture = std::shared_ptr<Texture>(
-        Texture::CreateBC7Texture2D(
-            GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_EXT,
-            dds_resource->get_width(),
-            dds_resource->get_height(),
-            dds_resource->get_mipmap_count(),
-            dds_resource->get_data()
-        )
-    );
 
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        // Fallback: create a simple 1x1 white RGBA texture so the mesh is visible
-        const uint8_t whitePixel[4] = { 255, 255, 255, 255 };
-        CHECK_GL_ERROR({
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
-            // Use simple filtering (no mipmaps)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        });
-    
+    const auto ext = texture_path.extension().string();
+    std::string ext_lower(ext.begin(), ext.end());
+    std::transform(ext_lower.begin(), ext_lower.end(), ext_lower.begin(), ::tolower);
+
+    std::shared_ptr<Texture> loaded_texture(nullptr);
+    if (ext_lower == ".dds") {
+        DDSLoadResult load_result;
+        const auto dds_resource = load_dds(texture_path, load_result);
+        if (!dds_resource) {
+            std::cerr << "Texture couldn't be loaded: " << (int)load_result << std::endl;
+            return nullptr;
+        }
+
+        loaded_texture = std::shared_ptr<Texture>(
+            Texture::CreateBC7Texture2D(
+                GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_EXT,
+                dds_resource->get_width(),
+                dds_resource->get_height(),
+                dds_resource->get_mipmap_count(),
+                dds_resource->get_data()
+            )
+        );
+
+        GLenum err = glGetError();
+        if (err != GL_NO_ERROR) {
+            // Fallback: create a simple 1x1 white RGBA texture so the mesh is visible
+            const uint8_t whitePixel[4] = { 255, 255, 255, 255 };
+            CHECK_GL_ERROR({
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
+                // Use simple filtering (no mipmaps)
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            });
+        }
+
+        // Unbind texture from the current unit to avoid accidental use
+        glBindTexture(GL_TEXTURE_2D, 0);
+    } else if (ext_lower == ".png" || ext_lower == ".jpg" || ext_lower == ".jpeg") {
+        loaded_texture = std::shared_ptr<Texture>(
+            Texture::Create2DTextureFromFile(texture_path.string(), TextureWrapMode::TEXTURE_WRAP_MODE_REPEAT, TextureWrapMode::TEXTURE_WRAP_MODE_REPEAT, TextureFilterMode::TEXTURE_FILTER_MODE_LINEAR, TextureFilterMode::TEXTURE_FILTER_MODE_LINEAR)
+        );
+
+        if (!loaded_texture) {
+            std::cerr << "Failed to load image texture: " << texture_path << std::endl;
+        }
+    } else {
+        std::cerr << "Texture couldn't be loaded (unsupported or invalid): " << texture_path << std::endl;
     }
 
-    // Unbind texture from the current unit to avoid accidental use
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    return texture;
+    return nullptr;
 }
 
 void Scene::setCamera(std::shared_ptr<Camera> camera) noexcept {

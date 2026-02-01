@@ -172,8 +172,8 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    const float moveUnitPerSecond = 350.0f;
-    const float mouseSensitivity = 0.015f;
+    const float moveUnitPerSecond = 150.0f;
+    const float mouseSensitivity = 0.0055f;
     bool camera_locked = false;
     bool sun_enabled = true;
     bool spot_enabled = true;
