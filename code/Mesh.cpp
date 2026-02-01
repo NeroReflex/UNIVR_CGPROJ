@@ -53,10 +53,11 @@ Mesh::~Mesh() noexcept {
 
 void Mesh::draw(
     GLuint diffuse_color_location,
-    GLuint material_uniform_location
+    GLuint material_uniform_location,
+    GLint shininess_location
 ) const noexcept {
-    // bind texture to unit 0 if using texture
-    getMaterial()->bindRenderState(diffuse_color_location, material_uniform_location);
+    // bind texture to unit 0 if using texture and upload material state
+    getMaterial()->bindRenderState(diffuse_color_location, material_uniform_location, shininess_location);
 
     // Bind the VAO which already has the vertex attribute state
     glBindVertexArray(m_vao);

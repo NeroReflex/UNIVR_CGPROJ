@@ -62,7 +62,8 @@ static const auto gbuffer_attachments = std::vector<FramebufferColorFormat>{
     FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8, // normal tangentspace
     FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F, // position (worldspace)
     FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F, // normal (worldspace)
-    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F // tangent (worldspace)
+    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F, // tangent (worldspace)
+    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_R32F // shininess
 };
 
 static const auto ssao_attachments = std::vector<FramebufferColorFormat>{
@@ -172,8 +173,9 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
 
                     const auto diffuse_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseColor");
                     const auto material_flags_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_material_flags");
+                    const auto shininess_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_Shininess");
                     scene.foreachMesh([&](const Mesh& mesh) {
-                        mesh.draw(diffuse_color_location, material_flags_location);
+                        mesh.draw(diffuse_color_location, material_flags_location, shininess_location);
                     });
                 });
             });
@@ -280,7 +282,7 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                     m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", light_space_matrix);
 
                     scene.foreachMesh([&](const Mesh& mesh) {
-                        mesh.draw(0, 0);
+                        mesh.draw(0, 0, 0);
                     });
                 });
             });
@@ -354,7 +356,7 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                     m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", light_space_matrix);
 
                     scene.foreachMesh([&](const Mesh& mesh) {
-                        mesh.draw(0, 0);
+                        mesh.draw(0, 0, 0);
                     });
                 });
             });

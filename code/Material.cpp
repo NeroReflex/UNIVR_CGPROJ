@@ -3,9 +3,11 @@
 #include <glm/gtc/type_ptr.hpp>
 
 Material::Material(
-    const glm::vec3& diffuse_color
+    const glm::vec3& diffuse_color,
+    float shininess
 ) noexcept :
     m_diffuse_color(diffuse_color),
+    m_shininess(shininess),
     m_diffuse_texture(nullptr),
     m_specular_texture(nullptr),
     m_displacement_texture(nullptr)
@@ -15,7 +17,8 @@ Material::Material(
 
 void Material::bindRenderState(
     GLuint diffuse_color_location,
-    GLuint material_uniform_location
+    GLuint material_uniform_location,
+    GLint shininess_location
 ) const noexcept {
     const auto diffuse_texture = getDiffuseTexture();
 
@@ -62,5 +65,9 @@ void Material::bindRenderState(
 
     if (material_uniform_location != 0) {
         glUniform1ui(material_uniform_location, material_flags);
+    }
+
+    if (shininess_location != 0) {
+        glUniform1f(shininess_location, m_shininess);
     }
 }

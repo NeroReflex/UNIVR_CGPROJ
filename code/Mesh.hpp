@@ -17,7 +17,8 @@ public:
 
     void draw(
         GLuint diffuse_color_location,
-        GLuint material_uniform_location
+        GLuint material_uniform_location,
+        GLint shininess_location
     ) const noexcept;
 
     std::shared_ptr<Material> getMaterial() const noexcept;

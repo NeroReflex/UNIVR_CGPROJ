@@ -14,7 +14,8 @@ public:
     Material& operator=(const Material&) = delete;
 
     Material(
-        const glm::vec3& diffuse_color
+        const glm::vec3& diffuse_color,
+        float shininess
     ) noexcept;
 
     inline void setDiffuseTexture(std::shared_ptr<Texture> texture) noexcept {
@@ -43,11 +44,14 @@ public:
 
     void bindRenderState(
         GLuint diffuse_color_location,
-        GLuint material_uniform_location
+        GLuint material_uniform_location,
+        GLint shininess_location
     ) const noexcept;
 
 private:
     glm::vec3 m_diffuse_color;
+
+    float m_shininess;
 
     std::shared_ptr<Texture> m_diffuse_texture;
 

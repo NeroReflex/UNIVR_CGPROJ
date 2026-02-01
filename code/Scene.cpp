@@ -148,7 +148,17 @@ void Scene::load_asset(const char *const asset_name) noexcept {
                 glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
             }
 
-            auto material = std::make_shared<Material>(glm::vec3(0.0));
+            float shininess = 0.0f;
+            const aiMaterial *const assimp_mat = scene->mMaterials[mesh->mMaterialIndex];
+            if (assimp_mat) {
+                ai_real s = 0.0;
+                if (assimp_mat->Get(AI_MATKEY_SHININESS, s) == AI_SUCCESS) {
+                    std::cout << "Mesh " << meshIndex << " has shininess: " << s << std::endl;
+                    shininess = static_cast<float>(s);
+                }
+            }
+
+            auto material = std::make_shared<Material>(glm::vec3(0.0), shininess);
             material->setDiffuseTexture(
                 assimp_load_texture(
                     asset_path.parent_path(),

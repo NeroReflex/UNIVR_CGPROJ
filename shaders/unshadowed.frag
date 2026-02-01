@@ -19,6 +19,7 @@ layout(location = 2) uniform mat3 u_NormalMatrix;
 
 layout(location = 3) uniform vec3 u_DiffuseColor;
 layout(location = 4) uniform uint u_material_flags;
+layout(location = 5) uniform float u_Shininess;
 
 layout(location = 0) out vec4 gDiffuse;
 layout(location = 1) out vec4 gSpecular;
@@ -26,6 +27,7 @@ layout(location = 2) out vec4 gNormalTangentspace;
 layout(location = 3) out vec4 gPosition;
 layout(location = 4) out vec4 gNormal;
 layout(location = 5) out vec4 gTangent;
+layout(location = 6) out float gShininess;
 
 void main() {
     // diffuse texture available: using it
@@ -61,4 +63,5 @@ void main() {
 #else
     gTangent = vec4(in_vTangent_worldspace, 0.0);
 #endif
+    gShininess = u_Shininess;
 }

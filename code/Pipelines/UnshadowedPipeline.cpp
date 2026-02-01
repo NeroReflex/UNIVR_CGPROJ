@@ -63,10 +63,6 @@ void UnshadowedPipeline::render(const Scene& scene) noexcept {
     // 1) Geometry pass -> fill G-buffer (albedo, specular, normal) + depth
     if (m_gbuffer) {
         withFramebuffer(m_gbuffer.get(), [&]() {
-            // ensure draw buffers point to gbuffer attachments
-            const GLenum attachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
-            CHECK_GL_ERROR(glDrawBuffers(4, attachments));
-
             withEnabledDepthTest([&]() {
                 withFaceCulling([&]() {
                     // build matrices
@@ -101,8 +97,9 @@ void UnshadowedPipeline::render(const Scene& scene) noexcept {
 
                     const auto diffuse_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseColor");
                     const auto material_flags_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_material_flags");
+                    const auto shininess_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_Shininess");
                     scene.foreachMesh([&](const Mesh& mesh) {
-                        mesh.draw(diffuse_color_location, material_flags_location);
+                        mesh.draw(diffuse_color_location, material_flags_location, shininess_location);
                     });
                 });
             });
@@ -205,9 +202,11 @@ bool UnshadowedPipeline::resize(GLsizei width, GLsizei height) noexcept {
             {
                 FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8,
                 FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8,
-                FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGB32F,
+                FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8,
                 FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F,
-                FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F
+                FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F,
+                FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F,
+                FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_R32F
             },
             true,
             false
@@ -318,9 +317,11 @@ UnshadowedPipeline* UnshadowedPipeline::Create(GLsizei width, GLsizei height) no
         {
             FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8,
             FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8,
-            FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGB32F,
+            FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8,
             FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F,
-            FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F
+            FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F,
+            FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F,
+            FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_R32F
         },
         true,
         false
