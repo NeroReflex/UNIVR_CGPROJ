@@ -23,8 +23,13 @@
 static const unsigned int SCR_WIDTH = 800;
 static const unsigned int SCR_HEIGHT = 600;
 
-int main()
+int main(int argc, char **argv)
 {
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <path_to_3d_asset>" << std::endl;
+        return -1;
+    }
+
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
         std::cerr << "Failed to initialize SDL: " << SDL_GetError() << std::endl;
@@ -106,7 +111,7 @@ int main()
         */
     );
 
-    scene->load_asset("/home/denis/projects/neroreflex/Sponza/sponza.obj");
+    scene->load_asset(argv[1]);
 
     scene->setAmbientLight(
         AmbientLight(
