@@ -88,6 +88,42 @@ void Program::texture(const std::string& name, GLuint texture_unit, const Textur
         CHECK_GL_ERROR(glUniform1i(loc, static_cast<GLint>(texture_unit)));
 }
 
+void Program::framebufferAttachment(const std::string& name, GLuint texture_unit, GLuint attachment) noexcept {
+    if (texture_unit >= GL_TEXTURE0) {
+        texture_unit -= GL_TEXTURE0;
+    }
+
+    // Bind the framebuffer texture (color or depth) to the requested texture unit
+    CHECK_GL_ERROR(glActiveTexture(GL_TEXTURE0 + texture_unit));
+    CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_2D, attachment));
+
+    // Set the sampler uniform to the texture unit index
+    const GLint loc = getUniformLocation(name);
+    if (loc >= 0) {
+        CHECK_GL_ERROR(glUniform1i(loc, static_cast<GLint>(texture_unit)));
+    }
+}
+
+void Program::framebufferDepthAttachment(const std::string& name, GLuint texture_unit, const Framebuffer& framebuffer) noexcept {
+    if (texture_unit >= GL_TEXTURE0) {
+        texture_unit -= GL_TEXTURE0;
+    }
+
+    const auto attachment = framebuffer.getDepthAttachment();
+
+    return framebufferAttachment(name, texture_unit, attachment);
+}
+
+void Program::framebufferColorAttachment(const std::string& name, GLuint texture_unit, const Framebuffer& framebuffer, size_t index) noexcept {
+    if (texture_unit >= GL_TEXTURE0) {
+        texture_unit -= GL_TEXTURE0;
+    }
+
+    const auto attachment = framebuffer.getColorAttachment(index);
+
+    return framebufferAttachment(name, texture_unit, attachment);
+}
+
 void Program::uniformMat4x4(const std::string& name, const glm::mat4& val) noexcept {
     GLint loc = getUniformLocation(name);
     if (loc >= 0)

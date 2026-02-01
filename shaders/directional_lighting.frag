@@ -2,7 +2,7 @@
 
 precision highp float;
 
-#define LIGHTING_IN_TANGENTSPACE 1
+#define LIGHTING_IN_TANGENTSPACE 0
 
 #define USE_PCF_SHADOWS 1
 
@@ -12,8 +12,9 @@ layout(location = 0) in vec2 v_TexCoord;
 
 uniform sampler2D u_GDiffuse;
 uniform sampler2D u_GSpecular;
-uniform sampler2D u_GNormal;
+uniform sampler2D u_GNormalTangentSpace;
 uniform sampler2D u_GPosition;
+uniform sampler2D u_GNormal;
 uniform sampler2D u_GTangent;
 
 uniform sampler2D u_LightpassInput;

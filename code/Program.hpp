@@ -2,6 +2,7 @@
 
 #include "Shader.hpp"
 #include "Texture.hpp"
+#include "Framebuffer.hpp"
 #include "Buffer.hpp"
 
 #include <glm/glm.hpp>
@@ -50,11 +51,17 @@ public:
 
     void texture(const std::string& name, GLuint texture_unit, const Texture& texture) noexcept;
 
+    void framebufferColorAttachment(const std::string& name, GLuint texture_unit, const Framebuffer& framebuffer, size_t index) noexcept;
+
+    void framebufferDepthAttachment(const std::string& name, GLuint texture_unit, const Framebuffer& framebuffer) noexcept;
+
     void bind() const noexcept;
 
     void uniformStorageBuffer(const std::string& name, const Buffer& buf) noexcept;
 
 private:
+    void framebufferAttachment(const std::string& name, GLuint texture_unit, GLuint attachment) noexcept;
+
     GLint getUniformLocation(const std::string& name) noexcept;
 
     GLint getStorageLocation(const std::string& name) noexcept;

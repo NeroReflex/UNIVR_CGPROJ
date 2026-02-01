@@ -57,11 +57,12 @@ static std::string post_fragment_shader_str(reinterpret_cast<const char*>(post_f
 static const GLchar *const post_fragment_shader = post_fragment_shader_str.c_str();
 
 static const auto gbuffer_attachments = std::vector<FramebufferColorFormat>{
-    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8,
-    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8,
-    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F,
-    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F,
-    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F
+    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8, // diffuse
+    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8, // specular
+    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA8, // normal tangentspace
+    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F, // position (worldspace)
+    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F, // normal (worldspace)
+    FramebufferColorFormat::FRAMEBUFFER_COLOR_FORMAT_RGBA32F // tangent (worldspace)
 };
 
 static const auto ssao_attachments = std::vector<FramebufferColorFormat>{
@@ -190,23 +191,15 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
             // bind unshadowed program
             m_ssao_program->bind();
 
-            // bind gbuffer position and normal textures
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(2));
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(3));
+            // bind gbuffer position and world-space normal textures
+            // gNormal is at color attachment 4 (world-space normal)
+            m_ssao_program->framebufferColorAttachment("u_GNormal", GL_TEXTURE0, *m_gbuffer, 4);
+            m_ssao_program->framebufferColorAttachment("u_GPosition", GL_TEXTURE1, *m_gbuffer, 3);
+
             // bind SSAO noise texture
             if (m_ssao_noise_texture) {
-                glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, m_ssao_noise_texture->getTextureId());
-                const GLint uNoise = glGetUniformLocation(m_ssao_program->getProgram(), "u_NoiseTex");
-                if (uNoise >= 0) CHECK_GL_ERROR(glUniform1i(uNoise, 2));
+                m_ssao_program->texture("u_NoiseTex", GL_TEXTURE2, *m_ssao_noise_texture);
             }
-
-            const GLint uGNorm = glGetUniformLocation(m_ssao_program->getProgram(), "u_GNormal");
-            if (uGNorm >= 0) CHECK_GL_ERROR(glUniform1i(uGNorm, 0));
-            const GLint uGPos = glGetUniformLocation(m_ssao_program->getProgram(), "u_GPosition");
-            if (uGPos >= 0) CHECK_GL_ERROR(glUniform1i(uGPos, 1));
 
             m_ssao_program->uniformStorageBuffer("u_SSAOSamples", *m_ssao_sample_buffer);
             m_ssao_program->uniformUint("u_SSAOSampleCount", static_cast<glm::uint32>(ssao_samples_count));
@@ -227,11 +220,7 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
             m_ssao_blur_program->bind();
 
             // bind gbuffer position and normal textures
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, m_ssaobuffer->getColorAttachment(0));
-
-            const GLint uSSAO = glGetUniformLocation(m_ssao_blur_program->getProgram(), "in_ssao");
-            if (uSSAO >= 0) CHECK_GL_ERROR(glUniform1i(uSSAO, 0));
+            m_ssao_blur_program->framebufferColorAttachment("in_ssao", GL_TEXTURE0, *m_ssaobuffer, 0);
 
             m_ssao_blur_program->uniformUint("u_noise_dimensions", m_ssao_noise_texture ? m_ssao_noise_texture->getWidth() : 0u);
 
@@ -246,16 +235,9 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
             // bind unshadowed program
             m_ambient_lighting_program->bind();
 
-            // bind gbuffer diffuse texture
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(0));
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, m_ssao_blur_buffer->getColorAttachment(0));
-
-            const GLint uGDiff = glGetUniformLocation(m_ambient_lighting_program->getProgram(), "u_GDiffuse");
-            if (uGDiff >= 0) CHECK_GL_ERROR(glUniform1i(uGDiff, 0));
-            const GLint uSSAO = glGetUniformLocation(m_ambient_lighting_program->getProgram(), "u_SSAO");
-            if (uSSAO >= 0) CHECK_GL_ERROR(glUniform1i(uSSAO, 1));
+            // bind gbuffer diffuse texture and SSAO texture
+            m_ambient_lighting_program->framebufferColorAttachment("u_GDiffuse", GL_TEXTURE0, *m_gbuffer, 0);
+            m_ambient_lighting_program->framebufferColorAttachment("u_SSAO", GL_TEXTURE1, *m_ssao_blur_buffer, 0);
 
             m_ambient_lighting_program->uniformVec3("u_Ambient", ambient_light_intensity);
 
@@ -312,38 +294,14 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                 m_directional_lighting_program->bind();
 
                 // bind gbuffer textures (diffuse, specular, normal, position)
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(0));
-                glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(1));
-                glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(2));
-                glActiveTexture(GL_TEXTURE3);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(3));
-                glActiveTexture(GL_TEXTURE4);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(4));
-                glActiveTexture(GL_TEXTURE5);
-                glBindTexture(GL_TEXTURE_2D, m_lightbuffer[last_used_lightbuffer_index]->getColorAttachment(0));
-                glActiveTexture(GL_TEXTURE6);
-                glBindTexture(GL_TEXTURE_2D, m_shadowbuffer->getDepthAttachment());
-
-                const GLint uGDiff = glGetUniformLocation(m_directional_lighting_program->getProgram(), "u_GDiffuse");
-                if (uGDiff >= 0) CHECK_GL_ERROR(glUniform1i(uGDiff, 0));
-                const GLint uGSpec = glGetUniformLocation(m_directional_lighting_program->getProgram(), "u_GSpecular");
-                if (uGSpec >= 0) CHECK_GL_ERROR(glUniform1i(uGSpec, 1));
-                const GLint uGNorm = glGetUniformLocation(m_directional_lighting_program->getProgram(), "u_GNormal");
-                if (uGNorm >= 0) CHECK_GL_ERROR(glUniform1i(uGNorm, 2));
-                const GLint uGPos = glGetUniformLocation(m_directional_lighting_program->getProgram(), "u_GPosition");
-                if (uGPos >= 0) CHECK_GL_ERROR(glUniform1i(uGPos, 3));
-                const GLint uGTan = glGetUniformLocation(m_directional_lighting_program->getProgram(), "u_GTangent");
-                if (uGTan >= 0) CHECK_GL_ERROR(glUniform1i(uGTan, 4));
-
-                const GLint uLIP = glGetUniformLocation(m_directional_lighting_program->getProgram(), "u_LightpassInput");
-                if (uLIP >= 0) CHECK_GL_ERROR(glUniform1i(uLIP, 5));
-
-                const GLint uLDT = glGetUniformLocation(m_directional_lighting_program->getProgram(), "u_LDepthTexture");
-                assert(uLDT >= 0 && "ShadowedPipeline::render: Failed to get u_LDepthTexture uniform location");
-                CHECK_GL_ERROR(glUniform1i(uLDT, 6));
+                m_directional_lighting_program->framebufferColorAttachment("u_GDiffuse", GL_TEXTURE0, *m_gbuffer, 0);
+                m_directional_lighting_program->framebufferColorAttachment("u_GSpecular", GL_TEXTURE1, *m_gbuffer, 1);
+                m_directional_lighting_program->framebufferColorAttachment("u_GNormalTangentSpace", GL_TEXTURE2, *m_gbuffer, 2);
+                m_directional_lighting_program->framebufferColorAttachment("u_GPosition", GL_TEXTURE3, *m_gbuffer, 3);
+                m_directional_lighting_program->framebufferColorAttachment("u_GNormal", GL_TEXTURE4, *m_gbuffer, 4);
+                m_directional_lighting_program->framebufferColorAttachment("u_GTangent", GL_TEXTURE5, *m_gbuffer, 5);
+                m_directional_lighting_program->framebufferColorAttachment("u_LightpassInput", GL_TEXTURE6, *m_lightbuffer[last_used_lightbuffer_index], 0);
+                m_directional_lighting_program->framebufferDepthAttachment("u_LDepthTexture", GL_TEXTURE7, *m_shadowbuffer);
 
                 // bind directional light uniforms
                 {
@@ -407,43 +365,14 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                 // bind cone lighting program
                 m_cone_lighting_program->bind();
 
-                // bind gbuffer textures (diffuse, specular, normal, position)
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(0));
-                glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(1));
-                glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(2));
-                glActiveTexture(GL_TEXTURE3);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(3));
-                glActiveTexture(GL_TEXTURE4);
-                glBindTexture(GL_TEXTURE_2D, m_gbuffer->getColorAttachment(4));
-
-                // bind last lightbuffer as input
-                glActiveTexture(GL_TEXTURE5);
-                glBindTexture(GL_TEXTURE_2D, m_lightbuffer[last_used_lightbuffer_index]->getColorAttachment(0));
-
-                // bind shadow map
-                glActiveTexture(GL_TEXTURE6);
-                glBindTexture(GL_TEXTURE_2D, m_shadowbuffer->getDepthAttachment());
-
-                const GLint uGDiff = glGetUniformLocation(m_cone_lighting_program->getProgram(), "u_GDiffuse");
-                if (uGDiff >= 0) CHECK_GL_ERROR(glUniform1i(uGDiff, 0));
-                const GLint uGSpec = glGetUniformLocation(m_cone_lighting_program->getProgram(), "u_GSpecular");
-                if (uGSpec >= 0) CHECK_GL_ERROR(glUniform1i(uGSpec, 1));
-                const GLint uGNorm = glGetUniformLocation(m_cone_lighting_program->getProgram(), "u_GNormal");
-                if (uGNorm >= 0) CHECK_GL_ERROR(glUniform1i(uGNorm, 2));
-                const GLint uGPos = glGetUniformLocation(m_cone_lighting_program->getProgram(), "u_GPosition");
-                if (uGPos >= 0) CHECK_GL_ERROR(glUniform1i(uGPos, 3));
-                const GLint uGTan = glGetUniformLocation(m_cone_lighting_program->getProgram(), "u_GTangent");
-                if (uGTan >= 0) CHECK_GL_ERROR(glUniform1i(uGTan, 4));
-
-                const GLint uLIP = glGetUniformLocation(m_cone_lighting_program->getProgram(), "u_LightpassInput");
-                if (uLIP >= 0) CHECK_GL_ERROR(glUniform1i(uLIP, 5));
-
-                const GLint uLDT = glGetUniformLocation(m_cone_lighting_program->getProgram(), "u_LDepthTexture");
-                assert(uLDT >= 0 && "ShadowedPipeline::render: Failed to get u_LDepthTexture uniform location");
-                CHECK_GL_ERROR(glUniform1i(uLDT, 6));
+                m_cone_lighting_program->framebufferColorAttachment("u_GDiffuse", GL_TEXTURE0, *m_gbuffer, 0);
+                m_cone_lighting_program->framebufferColorAttachment("u_GSpecular", GL_TEXTURE1, *m_gbuffer, 1);
+                m_cone_lighting_program->framebufferColorAttachment("u_GNormalTangentSpace", GL_TEXTURE2, *m_gbuffer, 2);
+                m_cone_lighting_program->framebufferColorAttachment("u_GPosition", GL_TEXTURE3, *m_gbuffer, 3);
+                m_cone_lighting_program->framebufferColorAttachment("u_GNormal", GL_TEXTURE4, *m_gbuffer, 4);
+                m_cone_lighting_program->framebufferColorAttachment("u_GTangent", GL_TEXTURE5, *m_gbuffer, 5);
+                m_cone_lighting_program->framebufferColorAttachment("u_LightpassInput", GL_TEXTURE6, *m_lightbuffer[last_used_lightbuffer_index], 0);
+                m_cone_lighting_program->framebufferDepthAttachment("u_LDepthTexture", GL_TEXTURE7, *m_shadowbuffer);
 
                 // bind cone light uniforms
                 {

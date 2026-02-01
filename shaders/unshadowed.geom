@@ -17,9 +17,9 @@ layout(location = 1) uniform mat4 u_ModelMatrix;
 layout(location = 2) uniform mat3 u_NormalMatrix;
 
 layout(location = 0) out vec2 out_vTextureUV;
-layout(location = 1) out vec3 out_vNormal_worldspace;
-layout(location = 2) out vec3 out_vPosition_worldspace;
-layout(location = 3) out flat vec3 out_tangent_worldspace;
+layout(location = 1) out vec3 out_vPosition_worldspace;
+layout(location = 2) out vec3 out_vNormal_worldspace;
+layout(location = 3) out vec3 out_vTangent_worldspace;
 
 void main() {
 
@@ -31,17 +31,17 @@ void main() {
     // See https://learnopengl.com/Advanced-Lighting/Normal-Mapping
     float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
 
-    vec3 tangent = f * ((deltaUV2.y * edge1_modelspace) - deltaUV1.y * (edge2_modelspace));
+    vec3 tangent = normalize( f * ((deltaUV2.y * edge1_modelspace) - deltaUV1.y * (edge2_modelspace)) );
 
     // Copy inputs to outputs for each vertex of the triangle
     for (int i = 0; i < TRIANGLE_VERICES; i++) {
         gl_Position = gl_in[i].gl_Position;
 
         out_vTextureUV = in_vTextureUV[i];
-        out_vNormal_worldspace = in_vNormal_worldspace[i];
+        
         out_vPosition_worldspace = in_vPosition_worldspace[i];
-
-        out_tangent_worldspace = normalize( /* u_NormalMatrix * */ tangent);
+        out_vNormal_worldspace = in_vNormal_worldspace[i];
+        out_vTangent_worldspace = tangent;
 
         // Emit the vertex
         EmitVertex();
