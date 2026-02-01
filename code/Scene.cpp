@@ -284,7 +284,7 @@ std::shared_ptr<Texture> Scene::load_texture(const std::filesystem::path& textur
         std::cerr << "Texture couldn't be loaded (unsupported or invalid): " << texture_path << std::endl;
     }
 
-    return nullptr;
+    return loaded_texture;
 }
 
 void Scene::setCamera(std::shared_ptr<Camera> camera) noexcept {
