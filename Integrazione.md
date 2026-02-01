@@ -242,10 +242,9 @@ E' possibile modellare la luce di uno schermo escludendo il test della distanza.
 #### 5.1 tone mapping
 
 Il tone mapping è implementato con un fragment shader (applicato come post-process) sul risultato dell'ultimo
-calcolo del contributo luminoso qualunque sia l'ultimo passo eseguito, l'unica precondizione è che almeno ambient è stato eseguito. 
+calcolo del contributo luminoso qualunque sia l'ultimo passo eseguito, l'unica precondizione è che almeno ambient è stato eseguito.
 
-L'algoritmo usato è quello di [Uncharted 2](https://64.github.io/tonemapping/) e il suo scopo è permettermi di comparare i risultati
-con scene generate da un altro engine grafico.
+L'algoritmo usato è quello di [Uncharted 2](https://64.github.io/tonemapping/) e il suo scopo è permettermi di comparare i risultati con scene generate da un altro engine grafico.
 
 L'output è scritto in un framebuffer delle dimensione dello schermo.
 
