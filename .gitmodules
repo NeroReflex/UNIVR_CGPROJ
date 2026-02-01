@@ -1,0 +1,9 @@
+[submodule "include/imgui"]
+	path = include/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "include/stb"]
+	path = include/stb
+	url = https://github.com/nothings/stb.git
+[submodule "resources/sponza"]
+	path = resources/sponza
+	url = https://github.com/NeroReflex/sponza_dds.git
