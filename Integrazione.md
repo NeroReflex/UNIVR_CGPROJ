@@ -127,10 +127,11 @@ Ha questo nome perchè salva informazioni geometriche che vengono poi utilizzate
 I framebuffer generati sono i seguenti:
 
 - GPosition: l'insieme delle posizioni dei punti visibili dalla camera (di fatto la risoluzione al problema della visibilità)
-- GNormal: la normale dei punti visibili dalla camera
-- GTangent: la tangente dei punti visibili dalla camera: utile per il calcolo della illuminazione in tangent space
+- GNormalTangentSpace: il valore della normale in tangentspace: vec(0, 0, 1) se non è presente una normal map
 - GDiffuse: il valore della diffuse texture nel punto
 - GSpecular: il valore della specular texture nel punto
+- GNormal: la normale dei punti visibili dalla camera
+- GTangent: la tangente dei punti visibili dalla camera: utile per il calcolo della illuminazione in tangent space
 
 Queste informazioni sono essenziali per il corretto svolgimento dei passi successivi e l'avere i punti di interesse
 su cui eseguire gli algoritmi di shading consente di risparmiare tempo di esecuzione evitando di fare shading di
