@@ -77,17 +77,12 @@ void UnshadowedPipeline::render(const Scene& scene) noexcept {
                     const GLint width = viewport[2];
                     const GLint height = viewport[3];
 
-                    const glm::mat4 model_matrix = glm::mat4(1.0f);
                     const glm::mat4 proj = camera->getProjectionMatrix(static_cast<glm::uint32>(width), static_cast<glm::uint32>(height));
                     const glm::mat4 view = camera->getViewMatrix();
-                    const glm::mat4 mvp = proj * view * model_matrix;
-                    const glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
 
                     m_unshadowed_program->bind();
-                    m_unshadowed_program->uniformMat4x4("u_MVP", mvp);
-                    m_unshadowed_program->uniformMat4x4("u_ModelMatrix", model_matrix);
-                    m_unshadowed_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
 
+                    // Ensure samplers are bound to the correct texture units
                     const GLint uniTex = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseTex");
                     if (uniTex >= 0) CHECK_GL_ERROR(glUniform1i(uniTex, 0));
                     const GLint uniSpecTex = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_SpecularTex");
@@ -98,7 +93,17 @@ void UnshadowedPipeline::render(const Scene& scene) noexcept {
                     const auto diffuse_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseColor");
                     const auto material_flags_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_material_flags");
                     const auto shininess_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_Shininess");
+
+                    // Draw each mesh using its own model matrix
                     scene.foreachMesh([&](const Mesh& mesh) {
+                        const glm::mat4 model_matrix = mesh.getModelMatrix();
+                        const glm::mat4 mvp = proj * view * model_matrix;
+                        const glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
+
+                        m_unshadowed_program->uniformMat4x4("u_MVP", mvp);
+                        m_unshadowed_program->uniformMat4x4("u_ModelMatrix", model_matrix);
+                        m_unshadowed_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
+
                         mesh.draw(diffuse_color_location, material_flags_location, shininess_location);
                     });
                 });

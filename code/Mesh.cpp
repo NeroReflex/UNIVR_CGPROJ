@@ -2,8 +2,19 @@
 
 #include <cassert>
 
-Mesh::Mesh(GLuint vbo, GLuint vbi, GLuint ibo_count, std::shared_ptr<Material> material) noexcept
-    : m_vao(0), m_vbo(vbo), m_ibo(vbi), m_ibo_count(ibo_count), m_material(material)
+Mesh::Mesh(
+    GLuint vbo,
+    GLuint vbi,
+    GLuint ibo_count,
+    std::shared_ptr<Material> material,
+    const glm::mat4& model
+) noexcept :
+    m_vao(0),
+    m_vbo(vbo),
+    m_ibo(vbi),
+    m_ibo_count(ibo_count),
+    m_material(material),
+    m_model_matrix(model)
 {
     // Create and configure a VAO that captures the vertex attribute setup
     glGenVertexArrays(1, &m_vao);

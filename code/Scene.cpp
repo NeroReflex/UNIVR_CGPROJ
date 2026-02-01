@@ -29,7 +29,7 @@ void Scene::render() const noexcept {
 
 }
 
-void Scene::load_asset(const char *const asset_name) noexcept {
+void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noexcept {
     std::filesystem::path asset_path(asset_name);
     if (!std::filesystem::exists(asset_path)) {
         std::cerr << "Asset file does not exist: " << asset_name << std::endl;
@@ -184,7 +184,7 @@ void Scene::load_asset(const char *const asset_name) noexcept {
             );
 
             // Store mesh with VBO and IBO (ibo_count = number of indices). Normals are always present (either loaded or generated).
-            m_meshes.emplace_back(std::make_unique<Mesh>(vbo, ibo, static_cast<GLuint>(total_indices), material));
+            m_meshes.emplace_back(std::make_unique<Mesh>(vbo, ibo, static_cast<GLuint>(total_indices), material, model));
         }
 
     }

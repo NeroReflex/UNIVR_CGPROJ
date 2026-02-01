@@ -153,16 +153,8 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                     CHECK_GL_ERROR(glGetIntegerv(GL_VIEWPORT, viewport));
                     */
 
-                    // TODO: move this out of here
-                    const glm::mat4 model_matrix = glm::mat4(1.0f);
-
-                    const glm::mat4 mvp = proj * view * model_matrix;
-                    const glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
-
+                    // Draw each mesh using its own model matrix
                     m_unshadowed_program->bind();
-                    m_unshadowed_program->uniformMat4x4("u_MVP", mvp);
-                    m_unshadowed_program->uniformMat4x4("u_ModelMatrix", model_matrix);
-                    m_unshadowed_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
 
                     const GLint uniTex = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseTex");
                     if (uniTex >= 0) CHECK_GL_ERROR(glUniform1i(uniTex, 0));
@@ -174,7 +166,16 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                     const auto diffuse_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseColor");
                     const auto material_flags_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_material_flags");
                     const auto shininess_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_Shininess");
+
                     scene.foreachMesh([&](const Mesh& mesh) {
+                        const glm::mat4 model_matrix = mesh.getModelMatrix();
+                        const glm::mat4 mvp = proj * view * model_matrix;
+                        const glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
+
+                        m_unshadowed_program->uniformMat4x4("u_MVP", mvp);
+                        m_unshadowed_program->uniformMat4x4("u_ModelMatrix", model_matrix);
+                        m_unshadowed_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
+
                         mesh.draw(diffuse_color_location, material_flags_location, shininess_location);
                     });
                 });
@@ -279,9 +280,11 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                 withEnabledDepthTest([&]() {
                     // bind shadow map generation program
                     m_depth_only_program->bind();
-                    m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", light_space_matrix);
 
                     scene.foreachMesh([&](const Mesh& mesh) {
+                        const glm::mat4 model_matrix = mesh.getModelMatrix();
+                        const glm::mat4 ls = light_space_matrix * model_matrix;
+                        m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", ls);
                         mesh.draw(0, 0, 0);
                     });
                 });
@@ -353,9 +356,11 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                 withEnabledDepthTest([&]() {
                     // bind shadow map generation program
                     m_depth_only_program->bind();
-                    m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", light_space_matrix);
 
                     scene.foreachMesh([&](const Mesh& mesh) {
+                        const glm::mat4 model_matrix = mesh.getModelMatrix();
+                        const glm::mat4 ls = light_space_matrix * model_matrix;
+                        m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", ls);
                         mesh.draw(0, 0, 0);
                     });
                 });

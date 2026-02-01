@@ -20,6 +20,7 @@
 #include <assimp/scene.h>
 #include <assimp/material.h>
 #include <assimp/postprocess.h>
+#include <glm/glm.hpp>
 
 class Scene {
 
@@ -30,7 +31,7 @@ public:
 
     void render() const noexcept;
 
-    void load_asset(const char *const asset_name) noexcept;
+    void load_asset(const char *const asset_name, const glm::mat4& model = glm::mat4(1.0f)) noexcept;
 
     void setCamera(std::shared_ptr<Camera> camera) noexcept;
 
