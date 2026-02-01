@@ -4,11 +4,13 @@ precision highp float;
 precision highp usampler2D;
 
 //#define BIAS_FACTOR 0.0000001
-#define HEMISPHERE_SAMPLING 1
+#define HEMISPHERE_SAMPLING 0
 
 layout(location = 0) in vec2 v_TexCoord;
 
+#if HEMISPHERE_SAMPLING
 uniform sampler2D u_GNormal;
+#endif
 uniform sampler2D u_GPosition;
 uniform usampler2D u_NoiseTex;
 
@@ -87,6 +89,7 @@ float rnd(inout uint prev)
 
 #endif // _RANDOM_
 
+#if HEMISPHERE_SAMPLING
 // Returns true if the out_normal is below the horizon defined by surface_normal
 //
 // This function normalizes out_normal, and out_normal MUST NOT be zero
@@ -105,6 +108,7 @@ bool is_point_below_horizon(vec3 surface_point, vec3 surface_normal, vec3 other_
 
     return is_below_horizon(surface_normal, out_normal);
 }
+#endif
 
 mat4 rotate(float angle, vec3 axis) {
     float c = cos(angle);
@@ -125,7 +129,6 @@ mat4 rotate(float angle, vec3 axis) {
 }
 
 void main() {
-    vec3 n = normalize(texture(u_GNormal, v_TexCoord).rgb);
     vec4 position = vec4(texture(u_GPosition, v_TexCoord).xyz, 1.0);
 
     vec2 noise_scale = vec2(1.0);
@@ -166,7 +169,8 @@ void main() {
         vec3 rejectable_samplePos = position.xyz + rotated_sample.xyz;
 
         vec3 corrected_samplePos = position.xyz + rotated_sample.xyz;
-#if defined(HEMISPHERE_SAMPLING)
+#if HEMISPHERE_SAMPLING
+        vec3 n = normalize(texture(u_GNormal, v_TexCoord).rgb);
         if (is_point_below_horizon(position.xyz, n, rejectable_samplePos)) {
             corrected_samplePos = position.xyz + (-1.0 * rotated_sample.xyz);
         }
@@ -200,8 +204,11 @@ void main() {
         vec4 sampleViewPos = u_ViewMatrix * vec4(sampleWorldPos, 1.0);
         vec4 fragViewPos = u_ViewMatrix * position;
 
-        float sampleDepth = texture(u_GPosition, scaled_samplePos.xy).z;
-        float rangeCheck = smoothstep(0.0, 1.0, u_radius / abs(position.z - sampleDepth));
+        // Use view-space depth difference (z) for the range check so the
+        // comparison is done in the same coordinate space used later when
+        // comparing sampleViewPos and fragViewPos. Avoids using world-space
+        // z alone which can be incorrect when the camera is rotated.
+        float rangeCheck = smoothstep(0.0, 1.0, u_radius / abs(fragViewPos.z - sampleViewPos.z));
 
 #if defined(BIAS_FACTOR)
         const float bias = BIAS_FACTOR;

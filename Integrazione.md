@@ -156,9 +156,8 @@ corrispondente nel geometry buffer.
 
 Si può pensare all'occlusione di un punto come il grado di "ostruzione" del un punto appartenente alla superficie di un ogggetto.
 
-Il calcolo del valore di occlusione è eseguito come media di valori (campioni) di occlusione in punti appartenenti alla semisfera
-centrata attorno alla normale del punto, dove un campione si ritiene occluso se nel GBuffer appare un oggetto con
-Z minore rispetto al punto scelto.
+Il calcolo del valore di occlusione è eseguito come media di valori (campioni) di occlusione in punti appartenenti alla sfera
+con centro nel punto di cui ci interessa sapere l'occlusione, dove un campione si ritiene occluso se nel GBuffer appare un oggetto con Z minore rispetto al punto scelto. Questa implementazione è simile a quella del famoso videogioco Crytek, io ho tuttavia optato per non usare il tangentspace nel passo di SSAO.
 
 La generazione dei punti "casuali" viene eseguita da un algoritmo che applica la somma di un offset casuale, ma limitato
 tra 0 ed N. Se tale punto non appartiene all'emisfero interessato le componenti x,y,z dell'offset vengono moltiplicate
