@@ -1,5 +1,7 @@
 #include "Texture.hpp"
 
+#include <iostream>
+
 Texture::Texture(
     GLuint textureId,
     GLsizei width,
@@ -48,7 +50,28 @@ Texture* Texture::CreateBC7Texture2D(
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    glCompressedTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, bc7_bytes(width, height), data);
+    if (mip_levels <= 1) {
+        glCompressedTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, static_cast<GLsizei>(bc7_bytes(width, height)), data);
+    
+        std::cout << "Created BC7 texture " << textureId << " (" << width << "x" << height << ", no mipmaps)" << std::endl;
+    } else {
+        uint64_t offset = 0;
+        for (GLsizei level = 0; level < mip_levels; ++level) {
+            GLsizei w = width >> level;
+            GLsizei h = height >> level;
+            if (w < 1) w = 1;
+            if (h < 1) h = 1;
+
+            const GLsizei size = static_cast<GLsizei>(bc7_bytes(static_cast<uint32_t>(w), static_cast<uint32_t>(h)));
+            const void* ptr = static_cast<const uint8_t*>(data) + offset;
+
+            glCompressedTexImage2D(GL_TEXTURE_2D, level, internalFormat, w, h, 0, size, ptr);
+
+            offset += static_cast<uint64_t>(size);
+        }
+
+        std::cout << "Created BC7 texture " << textureId << " (" << width << "x" << height << ", " << mip_levels << " mipmap levels)" << std::endl;
+    }
 
     glBindTexture(GL_TEXTURE_2D, 0);
     return new Texture(textureId, width, height);

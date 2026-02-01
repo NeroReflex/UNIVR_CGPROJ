@@ -21,7 +21,8 @@ uint32_t DDSResource::get_height() const noexcept {
 }
 
 uint32_t DDSResource::get_mipmap_count() const noexcept {
-    return header ? header->mipMapCount : 0;
+    if (!header) return 1;
+    return header->mipMapCount == 0 ? 1 : header->mipMapCount;
 }
 
 uint32_t DDSResource::get_size() const noexcept {

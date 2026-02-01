@@ -227,7 +227,7 @@ std::shared_ptr<Texture> Scene::load_texture(const std::filesystem::path& textur
             GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_EXT,
             dds_resource->get_width(),
             dds_resource->get_height(),
-            0,
+            dds_resource->get_mipmap_count(),
             dds_resource->get_data()
         )
     );
