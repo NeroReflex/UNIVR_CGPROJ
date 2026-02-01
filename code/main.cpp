@@ -194,8 +194,18 @@ int main(int argc, char **argv)
             ImGui_ImplSDL2_ProcessEvent(&event);
             if (event.type == SDL_QUIT)
                 running = false;
-            else if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED)
+            else if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                // update GL viewport to match new window size
                 glViewport(0, 0, event.window.data1, event.window.data2);
+
+                // inform the rendering pipeline about the new dimensions so
+                // it can recreate framebuffers/textures as needed
+                if (pipeline) {
+                    if (!pipeline->resize(event.window.data1, event.window.data2)) {
+                        std::cerr << "Failed to resize graphic pipeline to " << event.window.data1 << "x" << event.window.data2 << std::endl;
+                    }
+                }
+            }
             else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
                 running = false;
             // Note: movement is handled per-frame using keyboard state (below), not on single KEYDOWN events.
