@@ -10,7 +10,7 @@ La relazione sull'integrazione si trova in Integrazione.md
 
 ## Relazione shadow mapping
 
-La relazione sullo shadow mapping si trova in shadoMapping.md
+La relazione sullo shadow mapping si trova in SHADOW_MAPPING.md
 
 ## Esercizi
 
