@@ -178,8 +178,20 @@ Il test è una semplice comparazione dei due valori per decidere se il punto è 
 
 ![Shadow acne](relazione/shadow_acne.png "Shadow acne")
 
-Il risultato è giusto nel concetto, ma ci sono zone dove l'ombra non è correttamente applicata: è un fenomeno simile nel concetto allo "z-fighting", chiamato __shadow acne__ ed è dovuto alla insufficiente risoluzione della rappresentazione in floating-pint del componente Z; esistono due modi per risolvere questo problema:
+Il risultato è giusto nel concetto, ma ci sono zone dove l'ombra non è correttamente applicata: è un fenomeno simile nel concetto allo "z-fighting", chiamato __shadow acne__ ed è dovuto alla insufficiente risoluzione della rappresentazione in floating-pint del componente Z; esistono principalmente tre modi per risolvere questo problema:
 
-- aumentare la risoluzione restringendo il volume interessato dallo shadow mapping
-- eseguire il rendering da un punto più ravvicinato (con possibile esclusioni di porzioni di scena che contribuirebbero all'ombra)
-- usare un offset, o *bias* nel test dell'ombreggiatura.
+1. Modifica della *projection matrix*: aumentare la risoluzione restringendo il volume interessato dallo shadow mapping
+2. Modifica della *view matrix*: eseguire il rendering da un punto più ravvicinato (con possibile esclusioni di porzioni di scena che contribuirebbero all'ombra)
+3. Modifica all'algoritmo: usare un offset, chiamato *bias* nel test dell'ombreggiatura.
+
+Scegliendo l'opzione 3 si può osservare come l'aggiunta un piccolo bias di 0.004 ottiene un risultato decisamente migliore:
+
+![Shadow acne risolto](relazione/bias.png "Shadow acne risolto")
+
+Questo però ha generato un problema la cui risoluzione non è banale dal punto di vista algoritmico: il __peter panning__
+
+![Peter panning](relazione/peter_panning.png "Peter panning")
+
+Questo fenomeno si chiama così perchè sembra che le obre siano staccate dall'oggetto che le sta generando.
+
+E' fondamentale osservare che un bias molto piccolo rimuove il problema sulle superfici orientate perpendicolarmente alla direzione della luce, ma risulta in shadow acne in superfici parallele.

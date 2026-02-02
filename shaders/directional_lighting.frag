@@ -4,7 +4,7 @@ precision highp float;
 
 #define USE_PCF_SHADOWS 1
 
-#define SMOOTH_BIAS 0
+#define SMOOTH_BIAS 1
 
 layout(location = 0) in vec2 v_TexCoord;
 
@@ -80,9 +80,9 @@ void main() {
     float currentDepth = lightSpacePos.z * 0.5 + 0.5;
 
 #if SMOOTH_BIAS
-    float bias = max(0.005 * (1.0 - NdotL_neg), 0.00005);
+    float bias = max(0.002 * (1.0 - NdotL_neg), 0.00002);
 #else
-    const float bias = 0.0000;
+    const float bias = 0.002;
 #endif
 
 #if USE_PCF_SHADOWS
