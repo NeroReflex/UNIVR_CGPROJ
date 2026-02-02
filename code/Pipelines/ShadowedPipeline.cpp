@@ -272,7 +272,14 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
         const glm::float32 right = top * aspect;
         const glm::float32 left = -right;
 
-        const glm::mat4 light_proj = glm::ortho(left, right, bottom, top, camera->getNearPlane(), camera->getFarPlane() * sqrt_3);
+        const glm::mat4 light_proj = glm::ortho(
+            left,
+            right,
+            bottom,
+            top,
+            camera->getNearPlane(),
+            camera->getFarPlane() * sqrt_3
+        );
         const glm::mat4 light_space_matrix = light_proj * light_view;
 
         withFramebuffer(m_shadowbuffer.get(), [&]() {
