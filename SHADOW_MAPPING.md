@@ -139,3 +139,47 @@ La projection matrix è una matrice di prospettiva perchè sfruttiamo l'angolo d
 
 Le luci puntiformi non sono implementate per motivi di tempo, ma seguono lo stesso principio delle luci spotlight, senza però limitare la forma della luce ad una circonferenza e avendo una shadowmap per faccia di un cubo centrato nell'origine della luce e la distanza centro cubo-centro faccia uguale a zNear; basta poi usare un angolo adeguato a coprire il volume attorno al punto.
 
+## Applicazione della shadowmap
+
+Una volta generata la shadowmap va applicata alla scena e la specifica implementazione dipende dal tipo di pipeline: deferred lighting, forward rendering o raytracing; nel progetto la pipeline grafica è del tipo deferred lighting, quindi per applicare una luce è necessario avere le seguenti informazioni:
+
+- la shadowmap
+- la view matrix della luce
+- la projection matrix della luce
+- la definizione della luce
+
+in un forward renderer è necessario disporre anche della model matrix per il rendering dell'oggetto 3D.
+
+Il principio fondamentale della applicazione della luce alla scena è calcolare l'illuminazione solo se il test dell'ombreggiatura da esito negativo, esempio per una luce direzionale:
+
+```c
+vec4 lightSpacePos = u_LightSpaceMatrix * vPosition_worldspace;
+lightSpacePos /= lightSpacePos.w;
+vec2 shadowTexCoord = lightSpacePos.xy * 0.5 + 0.5;
+if (shadowTexCoord.x < 0.0 || shadowTexCoord.x > 1.0 || shadowTexCoord.y < 0.0 || shadowTexCoord.y > 1.0) {
+    o_LightpassOutput = result;
+    return;
+}
+
+vec2 texelPos = shadowTexCoord * vec2(float(shadowTextureDimensions.x), float(shadowTextureDimensions.y));
+float closestDepth = texelFetch(u_LDepthTexture, ivec2(texelPos), 0).r;
+float currentDepth = lightSpacePos.z * 0.5 + 0.5;
+
+float shadow = (currentDepth - bias) > closestDepth ? 0.0 : 1.0;
+```
+
+Dove u_LightSpaceMatrix è la matrice View-Projection per trasformare il punto di interesse nel worldspace nel lightspace.
+
+shadowTexCoord sono le coordinate UV del punto (in lightspace) nella shadowmap.
+
+closestDepth è il risultato del sampling la shadowmap, currentDepth è la trasformazione del punto nel GBuffer in lightspace.
+
+Il test è una semplice comparazione dei due valori per decidere se il punto è in ombra; lo scopo di *bias* è chiarito in seguito.
+
+![Shadow acne](relazione/shadow_acne.png "Shadow acne")
+
+Il risultato è giusto nel concetto, ma ci sono zone dove l'ombra non è correttamente applicata: è un fenomeno simile nel concetto allo "z-fighting", chiamato __shadow acne__ ed è dovuto alla insufficiente risoluzione della rappresentazione in floating-pint del componente Z; esistono due modi per risolvere questo problema:
+
+- aumentare la risoluzione restringendo il volume interessato dallo shadow mapping
+- eseguire il rendering da un punto più ravvicinato (con possibile esclusioni di porzioni di scena che contribuirebbero all'ombra)
+- usare un offset, o *bias* nel test dell'ombreggiatura.
