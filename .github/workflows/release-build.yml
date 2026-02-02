@@ -38,7 +38,7 @@ jobs:
 
       - name: Upload artifact for workflow
         if: github.event_name != 'release'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: project-linux
           path: artifacts/project-linux.tar.gz
@@ -99,7 +99,7 @@ jobs:
 
       - name: Upload artifact for workflow
         if: github.event_name != 'release'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: project-windows
           path: artifacts/project-windows.zip
