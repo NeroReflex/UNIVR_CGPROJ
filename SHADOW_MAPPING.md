@@ -194,4 +194,20 @@ Questo però ha generato un problema la cui risoluzione non è banale dal punto 
 
 Questo fenomeno si chiama così perchè sembra che le obre siano staccate dall'oggetto che le sta generando.
 
-E' fondamentale osservare che un bias molto piccolo rimuove il problema sulle superfici orientate perpendicolarmente alla direzione della luce, ma risulta in shadow acne in superfici parallele.
+E' fondamentale osservare che un bias molto piccolo rimuove il problema sulle superfici orientate perpendicolarmente alla direzione della luce, ma risulta in shadow acne in superfici parallele: possiamo sfruttare questa osservazione per applicare un bias dipendentemente dall'angolo di incidenza della luce sulla superficie (o sulla sua normale) in questo modo:
+
+```c
+float bias = max(0.002 * (1.0 - NdotL_neg), 0.00002);
+```
+
+Pur non eliminando completamente il problema del peter panning questo lo riduce considerevolmente ed elimina completamente il problema dello shadow acne.
+
+![Smoothstep solves shadow acne](relazione/smooth_solved_shadow_acne.png "smoothstep solves shadow acne")
+
+![Smoothstep reduces peter panning](relazione/smooth_reduced_peter_panning.png "smoothstep reduces peter panning")
+
+A questo punto esistono diversi modi per risolvere i problemi rimanenti come la necessità di rigenerare la shadowmap ad ogni frame o il dover ridisegnare ogni mesh, ma ci concentriamo invece sul problema rimanente più vistoso: il fatto che le obre sono contornate da un effetto frastagliato a quadrati.
+
+![Ombre frastagliate (1)](relazione/frastagliato_1.png "ombre frastagliate (1)")
+
+![ombre frastagliate (2)](relazione/frastagliato_2.png "ombre frastagliate (2)")
