@@ -55,7 +55,7 @@ void main() {
     // load the input lightpass color: this is the light accumulated so far
     vec3 result = texture(u_LightpassInput, v_TexCoord).rgb;
 
-    vec3 normal = normalize(texture(u_GNormalTangentSpace, v_TexCoord).xyz);
+    vec3 normal = normalize(texture(u_GNormalTangentSpace, v_TexCoord).xyz /* * 2.0 - 1.0 */);
     vec3 light_dir = normalize(invTBN * u_LightDir);
 
     vec4 lightSpacePos = u_LightSpaceMatrix * vPosition_worldspace;

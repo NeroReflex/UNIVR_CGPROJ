@@ -22,6 +22,11 @@ layout(location = 0) uniform mat4 u_LightSpaceMatrix;
 layout(location = 1) uniform vec3 u_LightColor;
 layout(location = 2) uniform vec3 u_LightPosition;
 layout(location = 3) uniform vec3 u_LightDirection;
+layout(location = 4) uniform float u_LightCutOff;
+layout(location = 5) uniform float u_LightOuterCutOff;
+layout(location = 6) uniform float u_LightConstant;
+layout(location = 7) uniform float u_LightLinear;
+layout(location = 8) uniform float u_LightQuadratic;
 
 
 layout(location = 0) out vec3 o_LightpassOutput;
@@ -68,13 +73,37 @@ void main() {
 
     float currentDepth = lightSpacePos.z * 0.5 + 0.5;
 
-    vec3 vDir = normalize(invTBN * normalize(vPosition_worldspace.xyz - u_LightPosition));
+    // vector from light to point in tangent space
+    vec3 vDir_tangentspace = normalize(invTBN * normalize(u_LightPosition - vPosition_worldspace.xyz));
+    // cone axis in tangent space
     vec3 vLightDir_tangentspace = normalize(invTBN * u_LightDirection);
-    float fCosine = max(dot(vLightDir_tangentspace, vDir), 0.0);
 
-    float shadow = currentDepth - closestDepth > bias ? 0.0 : fCosine;
+    // angle between cone axis and vector from light to point
+    float theta = dot(vLightDir_tangentspace, -vDir_tangentspace);
 
-    result += u_LightColor * vDiffuse /* * NdotL */ * shadow;
+    // smooth inner/outer cone falloff
+    float epsilon = u_LightCutOff - u_LightOuterCutOff;
+    float coneIntensity = 0.0;
+    if (epsilon > 0.0) coneIntensity = clamp((theta - u_LightOuterCutOff) / epsilon, 0.0, 1.0);
+
+    // shadow test (simple hard shadow)
+    float shadow = currentDepth - closestDepth > bias ? 0.0 : 1.0;
+
+    // distance attenuation
+    float distance = length(u_LightPosition - vPosition_worldspace.xyz);
+    float attenuation = 1.0 / (u_LightConstant + u_LightLinear * distance + u_LightQuadratic * (distance * distance));
+
+    // use normal in tangent space for lighting coefficient
+    vec3 n_ts = normalize(texture(u_GNormalTangentSpace, v_TexCoord).rgb /* * 2.0 - 1.0*/ );
+
+    float NdotL = max(dot(n_ts, vDir_tangentspace), 0.0);
+
+    // Il modello di default ha distanze troppo elevate
+    if (attenuation < 0.001) {
+        attenuation = 1.0;
+    }
+
+    result += u_LightColor * vDiffuse /* *  NdotL */ *  attenuation * coneIntensity * shadow;
 
     o_LightpassOutput = result;
 }

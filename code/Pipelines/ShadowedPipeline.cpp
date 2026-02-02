@@ -387,6 +387,20 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                     m_cone_lighting_program->uniformVec3("u_LightPosition", cone.getPosition());
                     m_cone_lighting_program->uniformVec3("u_LightDirection", cone.getDirection());
                     m_cone_lighting_program->uniformMat4x4("u_LightSpaceMatrix", light_space_matrix);
+
+                    // compute inner/outer cone cutoffs from the light angle and cone properties
+                    const float outerHalf = static_cast<float>(light_angle * 0.5f);
+                    const float innerHalf = outerHalf * cone.getInnerRatio();
+                    const float cutOff = std::cos(innerHalf);
+                    const float outerCutOff = std::cos(outerHalf);
+
+                    m_cone_lighting_program->uniformFloat("u_LightCutOff", cutOff);
+                    m_cone_lighting_program->uniformFloat("u_LightOuterCutOff", outerCutOff);
+
+                    // distance attenuation constants from cone light
+                    m_cone_lighting_program->uniformFloat("u_LightConstant", cone.getConstant());
+                    m_cone_lighting_program->uniformFloat("u_LightLinear", cone.getLinear());
+                    m_cone_lighting_program->uniformFloat("u_LightQuadratic", cone.getQuadratic());
                 }
 
                 // draw fullscreen quad

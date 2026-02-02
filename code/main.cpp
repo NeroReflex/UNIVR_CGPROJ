@@ -129,10 +129,10 @@ int main(int argc, char **argv)
     // Add a default cone/spot light (angle stored in radians)
     const auto default_spot_light = ConeLight(
         glm::vec3(1.0f, 0.9f, 0.8f),
-        1.0f,
+        2.0f,
         glm::vec3(152.0f, 650.0f, -8.5f),
         glm::vec3(0.5f, 0.0f, 5.0f),
-        glm::radians(16.0f),
+        glm::radians(65.0f),
         10.0f,
         5000.0f
     );
@@ -144,7 +144,7 @@ int main(int argc, char **argv)
         default_spot_light.getIntensity(),
         camera->getCameraPosition(),
         camera->getOrientation(),
-        default_spot_light.getAngleRadians(),
+        glm::radians(35.0f),
         default_spot_light.getZNear(),
         default_spot_light.getZFar()
     );
@@ -418,6 +418,22 @@ int main(int argc, char **argv)
                         new_spot.setIntensity(intensity);
                     }
                 }
+                // inner ratio (0..1)
+                {
+                    float inner = spot_ptr->getInnerRatio();
+                    if (ImGui::SliderFloat("Inner Ratio", &inner, 0.0f, 1.0f)) {
+                        new_spot.setInnerRatio(inner);
+                    }
+                }
+                // attenuation constants
+                {
+                    float c = spot_ptr->getConstant();
+                    float l = spot_ptr->getLinear();
+                    float q = spot_ptr->getQuadratic();
+                    if (ImGui::InputFloat("Constant", &c)) new_spot.setConstant(c);
+                    if (ImGui::InputFloat("Linear", &l)) new_spot.setLinear(l);
+                    if (ImGui::InputFloat("Quadratic", &q)) new_spot.setQuadratic(q);
+                }
                 ImGui::PopID();
             }
             scene->setConeLight("Spot", new_spot);
@@ -475,6 +491,22 @@ int main(int argc, char **argv)
                     if (ImGui::SliderFloat("Intensity", &intensity, 0.0f, 100.0f)) {
                         new_player_spotlight.setIntensity(intensity);
                     }
+                }
+                // inner ratio
+                {
+                    float inner = new_player_spotlight.getInnerRatio();
+                    if (ImGui::SliderFloat("Inner Ratio", &inner, 0.0f, 1.0f)) {
+                        new_player_spotlight.setInnerRatio(inner);
+                    }
+                }
+                // attenuation constants
+                {
+                    float c = new_player_spotlight.getConstant();
+                    float l = new_player_spotlight.getLinear();
+                    float q = new_player_spotlight.getQuadratic();
+                    if (ImGui::InputFloat("Constant", &c)) new_player_spotlight.setConstant(c);
+                    if (ImGui::InputFloat("Linear", &l)) new_player_spotlight.setLinear(l);
+                    if (ImGui::InputFloat("Quadratic", &q)) new_player_spotlight.setQuadratic(q);
                 }
 
                 ImGui::PopID();
