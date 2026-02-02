@@ -2,8 +2,10 @@ name: Build Release Artifacts
 
 on:
   push:
-    branches: ['**']
+    branches: ['*']
   pull_request:
+    branches: ['main']
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -49,21 +51,35 @@ jobs:
 
   build-windows:
     name: Build (Windows)
-    runs-on: windows-latest
+      runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure CMake (MSBuild)
-        run: cmake -S . -B build -A x64 -DCMAKE_BUILD_TYPE=Release
+          run: |
+            cmake -S . -B build-mingw -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Windows \
+              -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+              -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+              -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres
 
       - name: Build (Release)
-        run: cmake --build build --config Release --target project -- /m
+          run: cmake --build build-mingw -- -j$(nproc)
 
       - name: Package
-        run: |
-          mkdir artifacts
-          if exist build\Release\project.exe ( copy build\Release\project.exe artifacts\project.exe ) else ( copy build\project.exe artifacts\project.exe )
-          powershell -Command "Compress-Archive -Path artifacts\project.exe -DestinationPath artifacts\project-windows.zip"
+          run: |
+            mkdir -p artifacts
+            EXE_PATH=$(find build-mingw -type f -name "project.exe" | head -n1 || true)
+            if [ -z "$EXE_PATH" ]; then
+              EXE_PATH=$(find build-mingw -type f -name "*.exe" | head -n1 || true)
+            fi
+            if [ -n "$EXE_PATH" ]; then
+              cp "$EXE_PATH" artifacts/project.exe
+              zip -j artifacts/project-windows.zip artifacts/project.exe
+            else
+              echo "No .exe found after cross-build" >&2
+              ls -R build-mingw
+              exit 1
+            fi
 
       - name: Upload artifact for workflow
         if: github.event_name != 'release'
