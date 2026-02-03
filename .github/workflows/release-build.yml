@@ -71,7 +71,17 @@ jobs:
 
       - name: Install dependencies with vcpkg
         run: |
-          .\vcpkg\vcpkg.exe install sdl2:x64-windows glfw3:x64-windows glm:x64-windows assimp:x64-windows glslang:x64-windows angle:x64-windows --recurse
+          .\vcpkg\vcpkg.exe install sdl2:x64-windows glfw3:x64-windows glm:x64-windows assimp:x64-windows angle:x64-windows --recurse
+
+      - name: Ensure glslangValidator (Chocolatey, non-interactive)
+        shell: powershell
+        run: |
+          Write-Output "Installing glslang via Chocolatey (non-interactive)..."
+          # choco is available on windows-latest; disable progress to avoid extra output
+          choco feature disable -n showDownloadProgress || true
+          choco install glslang -y --no-progress || Write-Output "choco install returned non-zero; continuing to detection step"
+          # refresh environment variables (provided by Chocolatey scripts)
+          refreshenv || Write-Output "refreshenv not available"
 
       - name: Expose glslangValidator and tools to PATH
         shell: powershell
