@@ -118,3 +118,51 @@ jobs:
           asset_path: artifacts/project-windows.zip
           asset_name: project-windows.zip
           asset_content_type: application/zip
+
+  build-windows-native:
+    name: Build (Windows native)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
+
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git vcpkg
+          .\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Install dependencies with vcpkg
+        run: |
+          .\vcpkg\vcpkg.exe install sdl2:x64-windows glfw3:x64-windows glm:x64-windows assimp:x64-windows glslang:x64-windows --recurse
+
+      - name: Configure CMake (Windows)
+        run: |
+          cmake -S . -B build-windows-native -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake
+
+      - name: Build (Windows native)
+        run: cmake --build build-windows-native --config Release -- /m
+
+      - name: Package (Windows native)
+        run: |
+          mkdir artifacts || true
+          $exe = (Get-ChildItem -Path build-windows-native -Recurse -Filter project.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $exe) { $exe = (Get-ChildItem -Path build-windows-native -Recurse -Filter *.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
+          if ($exe) { Copy-Item $exe artifacts\project.exe; Compress-Archive -Path artifacts\project.exe -DestinationPath artifacts\project-windows-native.zip -Force } else { Write-Error "No .exe found after native Windows build"; exit 1 }
+
+      - name: Upload native-windows artifact for workflow
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-windows-native
+          path: artifacts/project-windows-native.zip
+
+      - name: Upload Windows native asset to release
+        if: github.event_name == 'release'
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: artifacts/project-windows-native.zip
+          asset_name: project-windows-native.zip
+          asset_content_type: application/zip
