@@ -84,26 +84,6 @@ jobs:
           # refresh environment variables (provided by Chocolatey scripts)
           try { refreshenv } catch { Write-Output "refreshenv not available" }
 
-      - name: Expose glslangValidator and tools to PATH
-        shell: powershell
-        run: |
-          $installedRoot = "${{github.workspace}}\\vcpkg\\installed\\x64-windows"
-          Write-Output "Searching for glslangValidator under $installedRoot"
-          $found = Get-ChildItem -Path $installedRoot -Recurse -Filter glslangValidator.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($found) {
-            $exePath = $found.FullName
-            $exeDir = Split-Path $exePath -Parent
-            Write-Output "Found glslangValidator: $exePath"
-            Add-Content -Path $env:GITHUB_ENV -Value "GLSLANG_VALIDATOR=$exePath"
-            Add-Content -Path $env:GITHUB_PATH -Value $exeDir
-            Write-Output "Exported GLSLANG_VALIDATOR and added $exeDir to PATH"
-          } else {
-            Write-Output "glslangValidator not found. Listing $installedRoot for debug..."
-            Get-ChildItem -Path $installedRoot -Recurse | Select-Object -First 200 | ForEach-Object { Write-Output $_.FullName }
-            Write-Error "glslangValidator not found in vcpkg installed tree; ensure the 'glslang' package provides the tool for x64-windows or install glslangValidator via another method."
-            exit 1
-          }
-
       - name: Configure CMake (Windows)
         run: |
           cmake -S . -B build-windows-native -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake
