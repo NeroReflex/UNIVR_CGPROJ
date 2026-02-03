@@ -15,6 +15,7 @@
 #include <vector>
 #include <optional>
 #include <array>
+#include <functional>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
