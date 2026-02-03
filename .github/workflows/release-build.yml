@@ -64,6 +64,32 @@ jobs:
           submodules: 'recursive'
           fetch-depth: 0
 
+      - name: Ensure glslangValidator (from repo zip or Chocolatey)
+        shell: powershell
+        run: |
+          Write-Output "Looking for glslang zip in repository..."
+          $zip = Join-Path $env:GITHUB_WORKSPACE "glslang-master-windows-Release.zip"
+          if (Test-Path $zip) {
+            Write-Output "Found $zip — extracting to $env:GITHUB_WORKSPACE\glslang"
+            Expand-Archive -Path $zip -DestinationPath "$env:GITHUB_WORKSPACE\glslang" -Force
+            $exe = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\glslang" -Recurse -Filter glslangValidator.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($exe) {
+              $bin = $exe.DirectoryName
+              Write-Output "Found glslangValidator at $($exe.FullName). Adding $bin to PATH for subsequent steps."
+              "$bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            } else {
+              Write-Output "glslangValidator.exe not found inside zip; falling back to Chocolatey install."
+              & choco feature disable -n showDownloadProgress 2>$null
+              & choco install glslang -y --no-progress
+              try { refreshenv } catch { Write-Output "refreshenv not available" }
+            }
+          } else {
+            Write-Output "Zip not present in repo; installing glslang via Chocolatey (non-interactive)..."
+            & choco feature disable -n showDownloadProgress 2>$null
+            & choco install glslang -y --no-progress
+            try { refreshenv } catch { Write-Output "refreshenv not available" }
+          }
+
       - name: Setup vcpkg
         run: |
           git clone https://github.com/microsoft/vcpkg.git vcpkg
@@ -72,17 +98,6 @@ jobs:
       - name: Install dependencies with vcpkg
         run: |
           .\vcpkg\vcpkg.exe install sdl2:x64-windows glfw3:x64-windows glm:x64-windows assimp:x64-windows angle:x64-windows --recurse
-
-      - name: Ensure glslangValidator (Chocolatey, non-interactive)
-        shell: powershell
-        run: |
-          Write-Output "Installing glslang via Chocolatey (non-interactive)..."
-          # choco is available on windows-latest; disable progress to avoid extra output
-          & choco feature disable -n showDownloadProgress 2>$null
-          & choco install glslang -y --no-progress
-          if ($LASTEXITCODE -ne 0) { Write-Output "choco install returned non-zero; continuing to detection step" }
-          # refresh environment variables (provided by Chocolatey scripts)
-          try { refreshenv } catch { Write-Output "refreshenv not available" }
 
       - name: Configure CMake (Windows)
         run: |
