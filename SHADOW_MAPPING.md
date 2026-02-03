@@ -139,7 +139,7 @@ La projection matrix è una matrice di prospettiva perchè sfruttiamo l'angolo d
 
 Le luci puntiformi non sono implementate per motivi di tempo, ma seguono lo stesso principio delle luci spotlight, senza però limitare la forma della luce ad una circonferenza e avendo una shadowmap per faccia di un cubo centrato nell'origine della luce e la distanza centro cubo-centro faccia uguale a zNear; basta poi usare un angolo adeguato a coprire il volume attorno al punto.
 
-## Applicazione della shadowmap
+## Calcolo dell'ombreggiatura
 
 Una volta generata la shadowmap va applicata alla scena e la specifica implementazione dipende dal tipo di pipeline: deferred lighting, forward rendering o raytracing; nel progetto la pipeline grafica è del tipo deferred lighting, quindi per applicare una luce è necessario avere le seguenti informazioni:
 
@@ -240,5 +240,22 @@ Variando il numero di campioni variano i contorni delle ombre:
 
 ![PCF (1)](relazione/pcf_3.png "PCF 1")
 
-Più il numero di campioni è elevato e maggiore è l'effetto di sfumatura nei contorni delle ombre, ma a discapito della qualità della forma dell'ombra stessa.
+Più il numero di campioni è elevato e maggiore è l'effetto di sfumatura nei contorni delle ombre, ma a discapito della qualità della forma dell'ombra stessa: le ombre diventano sempre meno nitide e tendono a "fondersi" tra loro.
 
+## Applicazione della shadowmap
+
+Una volta scelto l'algoritmo di generazione del coefficiente di ombreggiatura la tecnica si completa applicando tale coefficiente al coefficiente di incidenza della luce:
+
+```c
+result += u_LightColor * vDiffuse * NdotL * shadow;
+```
+
+La formula sopra è valida per luci direzionali, quelle coniche e puntiformi seguono un principio simile:
+
+```c
+result += u_LightColor * vDiffuse *  NdotL *  attenuation * coneIntensity * shadow;
+```
+
+ma il calcolo dell'ombreggiatura e il principio generale rimangono invariati: il risultato finale sono fotogrammi dove le luci generano ombre:
+
+![Spotlight](relazione/spotlight.png "Spotlight")
