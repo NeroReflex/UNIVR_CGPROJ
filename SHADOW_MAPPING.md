@@ -231,3 +231,14 @@ float pcf_shadow(float currentDepth, float bias, ivec2 center) {
     return shadow;
 }
 ```
+
+Variando il numero di campioni variano i contorni delle ombre:
+
+![PCF (1)](relazione/pcf_1.png "PCF 1")
+
+![PCF (1)](relazione/pcf_2.png "PCF 1")
+
+![PCF (1)](relazione/pcf_3.png "PCF 1")
+
+Più il numero di campioni è elevato e maggiore è l'effetto di sfumatura nei contorni delle ombre, ma a discapito della qualità della forma dell'ombra stessa.
+
