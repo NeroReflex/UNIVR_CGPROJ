@@ -22,6 +22,9 @@ Per compilare il progetto sono richieste le seguenzi dipendenze:
 
 - sdl2
 - glfw
+- glslangValidator
+- glm
+- assimp
 
 ```sh
 mkdir build

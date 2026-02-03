@@ -211,3 +211,23 @@ A questo punto esistono diversi modi per risolvere i problemi rimanenti come la 
 ![Ombre frastagliate (1)](relazione/frastagliato_1.png "ombre frastagliate (1)")
 
 ![ombre frastagliate (2)](relazione/frastagliato_2.png "ombre frastagliate (2)")
+
+### PCF
+
+La soluzione al problema delle ombre frastagliate si chiama __Percentage Closer Filtering__, una famiglia di filtri che mirano a rendere i bordi delle obre più naturali evitando l'effetto a quadrati/blocchi mostrato sopra.
+
+L'implementazione pià semplice e quella usata nel progetto è fare la media dei pixel vicini a quello selezionato nella shadowmap:
+
+```c
+float pcf_shadow(float currentDepth, float bias, ivec2 center) {
+    float shadow = 0.0;
+    for(int x = -1; x <= 1; ++x) {
+        for(int y = -1; y <= 1; ++y) {
+            float pcfDepth = texelFetch(u_LDepthTexture, center + ivec2(x, y), 0).r;
+            shadow += currentDepth - bias < pcfDepth ? 1.0 : 0.0;
+        }    
+    }
+    shadow /= 9.0;
+    return shadow;
+}
+```
