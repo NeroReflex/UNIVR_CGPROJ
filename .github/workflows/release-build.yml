@@ -96,6 +96,22 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git vcpkg
           .\vcpkg\bootstrap-vcpkg.bat
 
+      - name: Debug glslang installation
+        if: always()
+        shell: powershell
+        run: |
+          Write-Output '--- Debug: check extracted glslang files and PATH ---'
+          $dest = Join-Path $env:GITHUB_WORKSPACE 'glslang'
+          if (Test-Path $dest) { Get-ChildItem -Path $dest -Recurse | Select-Object -First 50 | ForEach-Object { Write-Output $_.FullName } } else { Write-Output 'No glslang folder found' }
+          Write-Output '--- $GITHUB_PATH contents ---'
+          if (Test-Path $env:GITHUB_PATH) { Get-Content $env:GITHUB_PATH | ForEach-Object { Write-Output $_ } } else { Write-Output '$GITHUB_PATH does not exist' }
+          Write-Output '--- PATH env (first 2000 chars) ---'
+          Write-Output ($env:PATH.Substring(0,[Math]::Min(2000,$env:PATH.Length)))
+          Write-Output '--- where.exe glslangValidator ---'
+          try { & where.exe glslangValidator } catch { Write-Output 'where.exe did not find glslangValidator' }
+          Write-Output '--- Get-Command glslangValidator ---'
+          try { Get-Command glslangValidator -ErrorAction Stop | Format-List -Property Source,Definition } catch { Write-Output 'Get-Command did not find glslangValidator' }
+
       - name: Install dependencies with vcpkg
         run: |
           .\vcpkg\vcpkg.exe install sdl2:x64-windows glfw3:x64-windows glm:x64-windows assimp:x64-windows angle:x64-windows --recurse
