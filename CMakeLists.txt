@@ -45,6 +45,9 @@ file(MAKE_DIRECTORY ${SHADERS_OUT_DIR})
 
 # Path for the generated symbols header (always defined so build doesn't fail when glslangValidator is absent)
 set(EMBED_SYMBOLS_HEADER ${SHADERS_OUT_DIR}/embedded_shaders_symbols.h)
+# Ensure a placeholder header exists at configure time so compilers
+# that build targets immediately can find the include file.
+file(WRITE ${EMBED_SYMBOLS_HEADER} "// Placeholder generated at configure time by CMake\n#pragma once\n\n")
 
 find_program(GLSLANG_VALIDATOR glslangValidator)
 if(GLSLANG_VALIDATOR)
@@ -181,6 +184,11 @@ endif()
 
 # Provide the shader output directory path to the code so it can load compiled SPIR-V at runtime
 target_compile_definitions(cg_lib PRIVATE SHADERS_DIR=\"${SHADERS_OUT_DIR}\" SHADER_SRC_DIR=\"${SHADERS_SRC_DIR}\")
+
+# Always expose the shader output directory to the compiler include path so
+# `#include "embedded_shaders_symbols.h"` works even when glslangValidator
+# is not present and the file was created as a placeholder at configure time.
+target_include_directories(cg_lib PRIVATE ${SHADERS_OUT_DIR})
 
 # Prefer modern SDL2 imported target if available, otherwise fall back to FindSDL2
 find_package(SDL2 CONFIG QUIET)
