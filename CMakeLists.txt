@@ -213,6 +213,10 @@ find_package(SDL2 CONFIG QUIET)
 if (TARGET SDL2::SDL2)
     set(SDL2_LIBRARIES SDL2::SDL2)
     set(SDL2_INCLUDE_DIRS "")
+    # If the SDL2 CMake config provides the SDL2main target (MSVC/Windows), record it
+    if (TARGET SDL2::SDL2main)
+        set(SDL2_MAIN_LIB SDL2::SDL2main)
+    endif()
 else()
     find_package(SDL2 REQUIRED)
 endif()
@@ -289,6 +293,13 @@ include_directories(
 add_executable(project ./code/main.cpp)
 target_link_libraries(project PRIVATE cg_lib)
 
+# On some SDL2 installations (especially on Windows/MSVC) an additional
+# `SDL2main` library provides the proper WinMain/entrypoint glue that calls
+# the application's `SDL_main`/`main`. If present, link it into the final
+# executable so the CRT finds the program entrypoint on Windows.
+if(DEFINED SDL2_MAIN_LIB)
+    target_link_libraries(project PRIVATE ${SDL2_MAIN_LIB})
+endif()
 set_target_properties(project PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
 # Da qui in poi uso GLFW
