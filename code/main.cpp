@@ -113,6 +113,11 @@ int main(int argc, char **argv)
 
     scene->load_asset(argv[1]);
 
+    // HACK: se trovo il minotauro lo carico per testare le animazioni
+    if (std::filesystem::exists("animazioni/Minotaur@Attack.FBX")) {
+        scene->load_asset("animazioni/Minotaur@Attack.FBX");
+    }
+
     scene->setAmbientLight(
         AmbientLight(
             glm::vec3(0.2f, 0.2f, 0.2f),

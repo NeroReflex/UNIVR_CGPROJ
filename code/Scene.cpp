@@ -47,7 +47,7 @@ void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noe
 
     // aiProcess_CalcTangentSpace can be added if tangents are needed in the vertex shader
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(asset_name, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices);
+    const aiScene* scene = importer.ReadFile(asset_name, aiProcess_PopulateArmatureData | aiProcess_LimitBoneWeights | aiProcess_SortByPType | aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | aiProcess_GenSmoothNormals);
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
         // Handle error
         return;
@@ -56,147 +56,137 @@ void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noe
     std::cout << "Successfully loaded " << scene->mRootNode->mNumChildren << " child nodes from asset: " << asset_name << std::endl;
 
     // Process the scene's root node recursively
-    for (unsigned int i = 0; i < scene->mRootNode->mNumChildren; i++) {
-        const auto *const childNode = scene->mRootNode->mChildren[i];
-        // Process each child node (e.g., load meshes, materials, etc.)
+    for (unsigned int j = 0; j < scene->mNumMeshes; j++) {
+        const auto *const mesh = scene->mMeshes[j];
 
-        for (unsigned int j = 0; j < childNode->mNumMeshes; j++) {
-            unsigned int meshIndex = childNode->mMeshes[j];
-            const auto *const mesh = scene->mMeshes[meshIndex];
-            // Process the mesh (e.g., extract vertices, normals, texture coordinates, etc.)
+        // Determine whether the mesh provides normals; if not we'll compute per-vertex normals
+        const bool hasNormals = mesh->HasNormals() != 0;
 
-            //std::cout << "Mesh " << meshIndex << " has " << mesh->mNumVertices << " vertices." << std::endl;
+        // Create and fill VBO using buffer mapping (position.xyz [+ normal.xyz] + texcoord.uv interleaved)
+        const GLuint vertex_count = mesh->mNumVertices;
+        const GLsizeiptr vertex_buffer_size = static_cast<GLsizeiptr>(vertex_count * 8u * sizeof(float));
 
-            // Determine whether the mesh provides normals; if not we'll compute per-vertex normals
-            const bool hasNormals = mesh->HasNormals() != 0;
+        const GLuint vbo = Mesh::CreateVertexBuffer(nullptr, vertex_buffer_size);
 
-            // Create and fill VBO using buffer mapping (position.xyz [+ normal.xyz] + texcoord.uv interleaved)
-            const GLuint vertex_count = mesh->mNumVertices;
-            const GLsizeiptr vertex_buffer_size = static_cast<GLsizeiptr>(vertex_count * 8u * sizeof(float));
-
-            const GLuint vbo = Mesh::CreateVertexBuffer(nullptr, vertex_buffer_size);
-
-            // If normals are not provided by Assimp, compute them from faces
-            std::vector<glm::vec3> computed_normals;
-            if (!hasNormals) {
-                computed_normals.assign(vertex_count, glm::vec3(0.0f));
-                for (unsigned int fi = 0; fi < mesh->mNumFaces; ++fi) {
-                    const aiFace &face = mesh->mFaces[fi];
-                    if (face.mNumIndices < 3) continue;
-                    const unsigned int ia = face.mIndices[0];
-                    const unsigned int ib = face.mIndices[1];
-                    const unsigned int ic = face.mIndices[2];
-                    const aiVector3D &pa = mesh->mVertices[ia];
-                    const aiVector3D &pb = mesh->mVertices[ib];
-                    const aiVector3D &pc = mesh->mVertices[ic];
-                    const glm::vec3 a(pa.x, pa.y, pa.z);
-                    const glm::vec3 b(pb.x, pb.y, pb.z);
-                    const glm::vec3 c(pc.x, pc.y, pc.z);
-                    const glm::vec3 face_normal = glm::normalize(glm::cross(b - a, c - a));
-                    computed_normals[ia] += face_normal;
-                    computed_normals[ib] += face_normal;
-                    computed_normals[ic] += face_normal;
-                }
+        // If normals are not provided by Assimp, compute them from faces
+        std::vector<glm::vec3> computed_normals;
+        if (!hasNormals) {
+            computed_normals.assign(vertex_count, glm::vec3(0.0f));
+            for (unsigned int fi = 0; fi < mesh->mNumFaces; ++fi) {
+                const aiFace &face = mesh->mFaces[fi];
+                if (face.mNumIndices < 3) continue;
+                const unsigned int ia = face.mIndices[0];
+                const unsigned int ib = face.mIndices[1];
+                const unsigned int ic = face.mIndices[2];
+                const aiVector3D &pa = mesh->mVertices[ia];
+                const aiVector3D &pb = mesh->mVertices[ib];
+                const aiVector3D &pc = mesh->mVertices[ic];
+                const glm::vec3 a(pa.x, pa.y, pa.z);
+                const glm::vec3 b(pb.x, pb.y, pb.z);
+                const glm::vec3 c(pc.x, pc.y, pc.z);
+                const glm::vec3 face_normal = glm::normalize(glm::cross(b - a, c - a));
+                computed_normals[ia] += face_normal;
+                computed_normals[ib] += face_normal;
+                computed_normals[ic] += face_normal;
             }
-
-            // map and write vertex data directly into GPU memory
-            {
-                void *vptr = glMapBufferRange(GL_ARRAY_BUFFER, 0, vertex_buffer_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
-                assert(vptr != nullptr && "Failed to map vertex buffer");
-                float *dest = static_cast<float*>(vptr);
-                for (unsigned int vi = 0; vi < mesh->mNumVertices; ++vi) {
-                    const aiVector3D &pos = mesh->mVertices[vi];
-                    *dest++ = pos.x;
-                    *dest++ = pos.y;
-                    *dest++ = pos.z;
-
-                    // normal
-                    if (hasNormals) {
-                        const aiVector3D &n = mesh->mNormals[vi];
-                        *dest++ = n.x;
-                        *dest++ = n.y;
-                        *dest++ = n.z;
-                    } else {
-                        const glm::vec3 &n = computed_normals[vi];
-                        *dest++ = n.x;
-                        *dest++ = n.y;
-                        *dest++ = n.z;
-                    }
-
-                    // texcoord
-                    if (mesh->mTextureCoords[0]) {
-                        const aiVector3D &uv = mesh->mTextureCoords[0][vi];
-                        *dest++ = uv.x;
-                        *dest++ = uv.y;
-                    } else {
-                        *dest++ = 0.0f;
-                        *dest++ = 0.0f;
-                    }
-                }
-                glUnmapBuffer(GL_ARRAY_BUFFER);
-            }
-
-            // Build and fill index buffer using buffer mapping (assume triangulated faces)
-            GLuint total_indices = 0;
-            for (unsigned int fi = 0; fi < mesh->mNumFaces; ++fi) total_indices += mesh->mFaces[fi].mNumIndices;
-
-            // Use 32-bit indices: large models (like many glTF exports) can exceed 65535 vertices.
-            const GLsizeiptr index_buffer_size = static_cast<GLsizeiptr>(total_indices * sizeof(uint32_t));
-            const GLuint ibo = Mesh::CreateElementBuffer(nullptr, index_buffer_size);
-
-            {
-                void *iptr = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, index_buffer_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
-                assert(iptr != nullptr && "Failed to map index buffer");
-                uint32_t *idst = static_cast<uint32_t*>(iptr);
-                for (GLuint fi = 0; fi < mesh->mNumFaces; ++fi) {
-                    const aiFace &face = mesh->mFaces[fi];
-                    for (GLuint k = 0; k < face.mNumIndices; ++k) {
-                        idst[0] = static_cast<uint32_t>(face.mIndices[k]);
-                        ++idst;
-                    }
-                }
-                glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
-            }
-
-            float shininess = 0.0f;
-            const aiMaterial *const assimp_mat = scene->mMaterials[mesh->mMaterialIndex];
-            if (assimp_mat) {
-                ai_real s = 0.0;
-                if (assimp_mat->Get(AI_MATKEY_SHININESS, s) == AI_SUCCESS) {
-                    std::cout << "Mesh " << meshIndex << " has shininess: " << s << std::endl;
-                    shininess = static_cast<float>(s);
-                }
-            }
-
-            auto material = std::make_shared<Material>(glm::vec3(0.0), shininess);
-            material->setDiffuseTexture(
-                assimp_load_texture(
-                    asset_path.parent_path(),
-                    scene->mMaterials[mesh->mMaterialIndex],
-                    aiTextureType_DIFFUSE
-                )
-            );
-
-            material->setSpecularTexture(
-                assimp_load_texture(
-                    asset_path.parent_path(),
-                    scene->mMaterials[mesh->mMaterialIndex],
-                    aiTextureType_SPECULAR
-                )
-            );
-
-            material->setDisplacementTexture(
-                assimp_load_texture(
-                    asset_path.parent_path(),
-                    scene->mMaterials[mesh->mMaterialIndex],
-                    aiTextureType_DISPLACEMENT
-                )
-            );
-
-            // Store mesh with VBO and IBO (ibo_count = number of indices). Normals are always present (either loaded or generated).
-            m_meshes.emplace_back(std::make_unique<Mesh>(vbo, ibo, static_cast<GLuint>(total_indices), material, model));
         }
 
+        // map and write vertex data directly into GPU memory
+        {
+            void *vptr = glMapBufferRange(GL_ARRAY_BUFFER, 0, vertex_buffer_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+            assert(vptr != nullptr && "Failed to map vertex buffer");
+            float *dest = static_cast<float*>(vptr);
+            for (unsigned int vi = 0; vi < mesh->mNumVertices; ++vi) {
+                const aiVector3D &pos = mesh->mVertices[vi];
+                *dest++ = pos.x;
+                *dest++ = pos.y;
+                *dest++ = pos.z;
+
+                // normal
+                if (hasNormals) {
+                    const aiVector3D &n = mesh->mNormals[vi];
+                    *dest++ = n.x;
+                    *dest++ = n.y;
+                    *dest++ = n.z;
+                } else {
+                    const glm::vec3 &n = computed_normals[vi];
+                    *dest++ = n.x;
+                    *dest++ = n.y;
+                    *dest++ = n.z;
+                }
+
+                // texcoord
+                if (mesh->mTextureCoords[0]) {
+                    const aiVector3D &uv = mesh->mTextureCoords[0][vi];
+                    *dest++ = uv.x;
+                    *dest++ = uv.y;
+                } else {
+                    *dest++ = 0.0f;
+                    *dest++ = 0.0f;
+                }
+            }
+            glUnmapBuffer(GL_ARRAY_BUFFER);
+        }
+
+        // Build and fill index buffer using buffer mapping (assume triangulated faces)
+        GLuint total_indices = 0;
+        for (unsigned int fi = 0; fi < mesh->mNumFaces; ++fi) total_indices += mesh->mFaces[fi].mNumIndices;
+
+        // Use 32-bit indices: large models (like many glTF exports) can exceed 65535 vertices.
+        const GLsizeiptr index_buffer_size = static_cast<GLsizeiptr>(total_indices * sizeof(uint32_t));
+        const GLuint ibo = Mesh::CreateElementBuffer(nullptr, index_buffer_size);
+
+        {
+            void *iptr = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, index_buffer_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+            assert(iptr != nullptr && "Failed to map index buffer");
+            uint32_t *idst = static_cast<uint32_t*>(iptr);
+            for (GLuint fi = 0; fi < mesh->mNumFaces; ++fi) {
+                const aiFace &face = mesh->mFaces[fi];
+                for (GLuint k = 0; k < face.mNumIndices; ++k) {
+                    idst[0] = static_cast<uint32_t>(face.mIndices[k]);
+                    ++idst;
+                }
+            }
+            glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+        }
+
+        float shininess = 0.0f;
+        const aiMaterial *const assimp_mat = scene->mMaterials[mesh->mMaterialIndex];
+        if (assimp_mat) {
+            ai_real s = 0.0;
+            if (assimp_mat->Get(AI_MATKEY_SHININESS, s) == AI_SUCCESS) {
+                //std::cout << "Mesh " << meshIndex << " has shininess: " << s << std::endl;
+                shininess = static_cast<float>(s);
+            }
+        }
+
+        auto material = std::make_shared<Material>(glm::vec3(0.0), shininess);
+        material->setDiffuseTexture(
+            assimp_load_texture(
+                asset_path.parent_path(),
+                scene->mMaterials[mesh->mMaterialIndex],
+                aiTextureType_DIFFUSE
+            )
+        );
+
+        material->setSpecularTexture(
+            assimp_load_texture(
+                asset_path.parent_path(),
+                scene->mMaterials[mesh->mMaterialIndex],
+                aiTextureType_SPECULAR
+            )
+        );
+
+        material->setDisplacementTexture(
+            assimp_load_texture(
+                asset_path.parent_path(),
+                scene->mMaterials[mesh->mMaterialIndex],
+                aiTextureType_DISPLACEMENT
+            )
+        );
+
+        // Store mesh with VBO and IBO (ibo_count = number of indices). Normals are always present (either loaded or generated).
+        m_meshes.emplace_back(std::make_unique<Mesh>(vbo, ibo, static_cast<GLuint>(total_indices), material, model));
     }
 }
 
@@ -218,8 +208,12 @@ std::shared_ptr<Texture> Scene::assimp_load_texture(
                 load_texture(base_path / std::filesystem::path(str.C_Str())) :
                 it->second;
 
-            assert(diffuse_texture != nullptr && "Failed to load texture");
-
+            // Do not fail but print an error message
+            //assert(diffuse_texture != nullptr && "Failed to load texture");
+            if (!diffuse_texture) {
+                std::cerr << "Failed to load texture: " << (base_path / std::filesystem::path(str.C_Str())) << std::endl;
+                continue;
+            }
             m_texture_cache.insert({current_texture_key, diffuse_texture});
         }
     }
