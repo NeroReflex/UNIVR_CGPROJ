@@ -1,0 +1,79 @@
+#version 320 es
+
+precision highp float;
+
+layout (local_size_x = 16, local_size_y = 1) in;
+
+#define NODE_IS_NOT_BONE -1
+
+#define MAX_ANIMATION_KEYS_PER_CHANNEL 64u
+// Must match CPU-side MAX_ANIMATION_CHANNELS
+#define MAX_ANIMATION_CHANNELS 128u
+
+struct SkeletonGPUElement {
+    mat4 offset_matrix;
+
+    uint armature_node_index;
+};
+
+struct ArmatureGPUElement {
+    mat4 transform;
+
+    // 0 means root/no parent
+    uint parent_index;
+};
+
+layout(std430, binding = 0) buffer OriginalSkeletonBuffer {
+    SkeletonGPUElement bones[];
+} original_skeleton;
+
+layout(std430, binding = 1) buffer PerFrameSkeletonBuffer {
+    SkeletonGPUElement bones[];
+} per_frame_skeleton;
+
+layout(std430, binding = 2) buffer ArmatureBuffer {
+    ArmatureGPUElement armature[];
+} armature_data;
+
+void main() {
+    // Each invocation processes one bone index (mapped from dispatch groups in the host).
+    uint boneIndex = uint(gl_GlobalInvocationID.x);
+    uint nbones = uint(original_skeleton.bones.length());
+    if (boneIndex >= nbones) return; // out of bounds, do nothing
+
+    // copy over the armature node index: the structure MUST NOT change
+    per_frame_skeleton.bones[boneIndex].armature_node_index = original_skeleton.bones[boneIndex].armature_node_index;
+
+    mat4 new_offset = mat4(1.0);
+
+    // find the armature node corresponding to this bone index. We need to find it in order to walk the parent chain and compute the final transform for this bone.
+    uint armature_starting_index = per_frame_skeleton.bones[boneIndex].armature_node_index ;
+    uint armature_length = uint(armature_data.armature.length());
+
+    // WARNING: This MUST NOT happen!!!
+    if (armature_starting_index >= armature_length) {
+        // No node corresponds to this bone index. This can happen if the skeleton has more bones than the armature (e.g. if some bones are not used for skinning). In this case, we just copy the original offset matrix.
+        per_frame_skeleton.bones[boneIndex].offset_matrix = original_skeleton.bones[boneIndex].offset_matrix;
+        return;
+    }
+
+    uint current_armature_index = armature_starting_index;
+    mat4 current_transform = mat4(1.0);
+    // Walk up the parent chain, sampling animation channels per-node to
+    // compute the local transform for each node and accumulate global transform.
+    while (true) {
+        mat4 local = armature_data.armature[current_armature_index].transform;
+
+        current_transform = local * current_transform;
+        uint parent_index = armature_data.armature[current_armature_index].parent_index;
+        if (parent_index == current_armature_index) {
+            break; // reached root
+        }
+        current_armature_index = parent_index;
+    }
+
+    // Final skinning matrix: global transform * inverse-bind (original offset)
+    per_frame_skeleton.bones[boneIndex].offset_matrix = current_transform * original_skeleton.bones[boneIndex].offset_matrix;
+
+    return;
+}

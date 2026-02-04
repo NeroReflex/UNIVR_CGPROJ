@@ -82,7 +82,7 @@ void main() {
 #if SMOOTH_BIAS
     float bias = max(0.004 * (1.0 - NdotL_neg), 0.00004);
 #else
-    const float bias = 0.002;
+    const float bias = 0.004;
 #endif
 
 #if USE_PCF_SHADOWS

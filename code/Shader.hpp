@@ -66,3 +66,17 @@ public:
         return (shader != 0) ? new FragmentShader(shader) : nullptr;
     }
 };
+
+class ComputeShader : public Shader {
+public:
+    ComputeShader() = delete;
+    ComputeShader(const ComputeShader&) = delete;
+    ComputeShader& operator=(const ComputeShader&) = delete;
+
+    inline ComputeShader(GLuint shader) noexcept : Shader(shader) {};
+
+    inline static ComputeShader* CompileShader(const char *source) noexcept {
+        const auto shader = Shader::CompileShader(GL_COMPUTE_SHADER, source);
+        return (shader != 0) ? new ComputeShader(shader) : nullptr;
+    }
+};

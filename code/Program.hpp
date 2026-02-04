@@ -33,6 +33,10 @@ public:
         const FragmentShader *const fragShader
     ) noexcept;
 
+    static Program* LinkProgram(
+        const ComputeShader *const compShader
+    ) noexcept;
+
     inline const GLuint& getProgram() const noexcept {
         return m_program;
     }
@@ -58,6 +62,10 @@ public:
     void bind() const noexcept;
 
     void uniformStorageBuffer(const std::string& name, const Buffer& buf) noexcept;
+
+    void uniformStorageBufferBinding(const std::string& name, GLuint bufferId) noexcept;
+
+    void dispatchCompute(GLuint num_groups_x, GLuint num_groups_y, GLuint num_groups_z) noexcept;
 
 private:
     void framebufferAttachment(const std::string& name, GLuint texture_unit, GLuint attachment) noexcept;

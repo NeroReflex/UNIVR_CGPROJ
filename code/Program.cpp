@@ -2,6 +2,17 @@
 
 #include <cstdio>
 
+// Some drivers expose the client-mapped buffer barrier as an EXT symbol.
+// Provide a safe fallback so this file compiles on systems where the
+// core symbol is not defined.
+#ifndef GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT
+#ifdef GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT_EXT
+#define GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT_EXT
+#else
+#define GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT 0
+#endif
+#endif
+
 static void printProgramLog(GLuint prog) {
     GLint len = 0;
     glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &len);
@@ -50,6 +61,39 @@ Program* Program::LinkProgram(
     if (geomShader)
         glDetachShader(prog, geomShader->m_shader);
     glDetachShader(prog, fragShader->m_shader);
+
+    GLint linked = 0;
+    glGetProgramiv(prog, GL_LINK_STATUS, &linked);
+    if (!linked) {
+        fprintf(stderr, "Program failed to link.\n");
+        printProgramLog(prog);
+        glDeleteProgram(prog);
+        return nullptr;
+    }
+
+    std::unordered_map<std::string, GLint> uniform_locations;
+    std::unordered_map<std::string, GLint> storage_locations;
+    std::unordered_map<std::string, GLint> attribute_locations;
+
+    return new Program(
+        prog,
+        std::move(uniform_locations),
+        std::move(storage_locations),
+        std::move(attribute_locations)
+    );
+}
+
+Program* Program::LinkProgram(
+    const ComputeShader *const compShader
+) noexcept {
+    GLuint prog = glCreateProgram();
+    if (!prog) return 0;
+
+    glAttachShader(prog, compShader->m_shader);
+
+    glLinkProgram(prog);
+
+    glDetachShader(prog, compShader->m_shader);
 
     GLint linked = 0;
     glGetProgramiv(prog, GL_LINK_STATUS, &linked);
@@ -213,12 +257,9 @@ GLint Program::getStorageLocation(const std::string& name) noexcept {
 
     // Fallback: query from driver and cache result; warn if missing.
     const auto loc = glGetProgramResourceIndex(m_program, GL_SHADER_STORAGE_BLOCK, name.c_str());
-    if (loc >= 0) {
-        // Cache only valid locations. Do not cache -1 so that future
-        // lookups (e.g. after relinking) can still succeed.
-        m_storage_locations[name] = loc;
-    } else {
+    if (loc < 0) {
         fprintf(stderr, "Warning: shader storage block '%s' not found in program %u\n", name.c_str(), m_program);
+        return -1;
     }
 
     // Query the binding point assigned to this block (if the shader used
@@ -236,6 +277,10 @@ GLint Program::getStorageLocation(const std::string& name) noexcept {
         binding = static_cast<GLint>(loc);
     }
 
+    // Cache the resolved binding (not the resource index) so subsequent
+    // calls return the actual SSBO binding point expected by callers.
+    m_storage_locations[name] = binding;
+
     return binding;
 }
 
@@ -244,4 +289,20 @@ void Program::uniformStorageBuffer(const std::string& name, const Buffer& buf) n
     if (loc >= 0) {
         CHECK_GL_ERROR(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, loc, buf.m_sbo));
     }
+}
+
+void Program::uniformStorageBufferBinding(const std::string& name, GLuint bufferId) noexcept {
+    GLint loc = getStorageLocation(name);
+    if (loc >= 0) {
+        CHECK_GL_ERROR(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(loc), bufferId));
+    }
+}
+
+void Program::dispatchCompute(GLuint num_groups_x, GLuint num_groups_y, GLuint num_groups_z) noexcept {
+    glUseProgram(m_program);
+    CHECK_GL_ERROR(glDispatchCompute(num_groups_x, num_groups_y, num_groups_z));
+
+    // Ensure shader storage writes are visible to subsequent GPU stages
+    // and to the client when mapping the buffer for readback.
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT | GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
 }

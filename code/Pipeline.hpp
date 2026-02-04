@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Scene.hpp"
-
 #include "Program.hpp"
 #include "Framebuffer.hpp"
+
+class Scene;
 
 class Pipeline {
 public:
@@ -13,7 +13,7 @@ public:
 
     virtual ~Pipeline();
 
-    virtual void render(const Scene& scene) noexcept = 0;
+    virtual void render(const Scene *const scene) noexcept = 0;
 
     /**
      * Resize the pipeline's internal resources to the new width and height.

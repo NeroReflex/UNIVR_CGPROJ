@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <vector>
 #include <cstdint>
+#include <unordered_map>
+#include <optional>
 
 #include "Scene.hpp"
 
@@ -21,93 +23,340 @@
 
 #include "dds_loader/dds_loader.hpp"
 
-Scene::Scene() noexcept :
-    m_meshes(),
+#include "embedded_shaders_symbols.h"
+
+SceneElementAnimationStatus::SceneElementAnimationStatus(
+    const std::string& name
+) noexcept :
+    m_name(name),
+    m_current_delta_time(0.0)
+{
+
+}
+
+void SceneElementAnimationStatus::advanceTime(float delta_time) noexcept {
+    m_current_delta_time += delta_time;
+}
+
+const std::string& SceneElementAnimationStatus::getName(void) const noexcept {
+    return m_name;
+}
+
+float SceneElementAnimationStatus::getCurrentDeltaTime() const noexcept {
+    return m_current_delta_time;
+}
+
+void SceneElement::foreachMesh(std::function<void(const Mesh&)> fn) const noexcept {
+    for (const auto& mesh : m_meshes) {
+        fn(*mesh);
+    }
+}
+
+bool SceneElement::hasAnimations(void) const noexcept {
+    return !m_animations.empty();
+}
+
+const std::unordered_map<std::string, std::shared_ptr<Animation>>& SceneElement::getAnimations() const noexcept {
+    return m_animations;
+}
+
+std::shared_ptr<Animation> SceneElement::getCurrentAnimation() const noexcept {
+    if (!m_animation_status.has_value()) return nullptr;
+    const auto& name = m_animation_status->getName();
+    const auto it = m_animations.find(name);
+    if (it == m_animations.end()) return nullptr;
+    return it->second;
+}
+
+bool SceneElement::startAnimation(const std::string& name) noexcept {
+    if (m_animation_status.has_value()) {
+        std::cout << "Animation " << m_animation_status->getName() << " is already playing, cannot start another animation (" << name << ")" << std::endl;
+        return false;
+    }
+
+    if (!m_animations.contains(name)) {
+        return false;
+    }
+
+    m_animation_status.emplace(name);
+
+    return true;
+}
+
+std::optional<double> SceneElement::getAnimationTime(void) const noexcept {
+    if (m_animation_status.has_value()) {
+        return m_animation_status->getCurrentDeltaTime();
+    }
+
+    return std::nullopt;
+}
+
+void SceneElement::advanceTime(float delta_time) noexcept {
+    if (m_animation_status.has_value()) {
+        m_animation_status->advanceTime(delta_time);
+
+        const auto& name = m_animation_status->getName();
+        const auto it = m_animations.find(name);
+        if (it != m_animations.end() && it->second) {
+            const auto anim = it->second;
+            const double duration_ticks = anim->getDuration();
+            const double ticks_per_second = anim->getTicksPerSecond();
+            double duration_seconds = duration_ticks;
+            if (ticks_per_second > 0.0) duration_seconds = duration_ticks / ticks_per_second;
+
+            if (m_animation_status->getCurrentDeltaTime() >= static_cast<float>(duration_seconds)) {
+                std::cout << "Animation " << name << " completed after " << m_animation_status->getCurrentDeltaTime() << "s." << std::endl;
+                m_animation_status.reset();
+            }
+        }
+    }
+}
+
+Scene::Scene(
+    std::unique_ptr<Program>&& animation_compute_program
+) noexcept :
+    m_elements(),
     m_ambient_light(),
-    m_camera(nullptr)
+    m_camera(nullptr),
+    m_animation_compute_program(std::move(animation_compute_program))
 {
 
 }
 
-Scene::~Scene() {
-    // m_camera, m_meshes, and textures will be automatically released
+void Scene::render(Pipeline *const pipeline) const noexcept {
+    // TODO: update animations
+
+    pipeline->render(this);
 }
 
-void Scene::render() const noexcept {
-    
+// indice=verticeID, elemento=lista di (boneIndex, weight)
+typedef std::unordered_map<uint32_t, std::vector<std::tuple<uint32_t, float>>> VertexBoneDataMap;
 
+/**
+ * 
+ * @param skeleton_metadata indice=bone name, element=(bone parent name, bone transform)
+ */
+VertexBoneDataMap load_bones_for_mesh(
+    const aiScene *const scene,
+    const aiMesh *pMesh,
+    std::shared_ptr<SkeletonTree>& skeleton_metadata
+) {
+    const auto mesh_name = std::string(pMesh->mName.C_Str());
+
+    // Loop through all bones in the Assimp mesh and ensure they exist in skeleton_metadata.
+    VertexBoneDataMap vertex_to_bone;
+    for (unsigned int i = 0; i < pMesh->mNumBones; i++) {
+        const auto bone = pMesh->mBones[i];
+        const auto bone_name = std::string(bone->mName.data);
+
+        const ArmatureNodeRef armature_node_ref = reinterpret_cast<ArmatureNodeRef>(bone->mNode);
+        assert(armature_node_ref != 0 && "Bone has no corresponding node in the Assimp scene hierarchy");
+
+        // add bone to skeleton metadata if not already present
+        const auto result = skeleton_metadata->addBone(
+            armature_node_ref,
+            glm::transpose(glm::make_mat4(&bone->mOffsetMatrix.a1))
+        );
+
+        assert(result && "Failed to add bone to skeleton metadata");
+
+        // Cerca l'osso nell'elenco delle ossa già caricate
+        const auto bone_search_result = skeleton_metadata->getBoneIndex(armature_node_ref);
+        assert(bone_search_result.has_value() && "Bone not found in skeleton metadata after addition");
+
+        const auto bone_index = bone_search_result.value();
+
+        std::cout << "Bone " << bone_name << " in mesh " << mesh_name << std::endl;
+
+        for (unsigned int j = 0; j < bone->mNumWeights; j++) {
+            uint32_t vertexID = bone->mWeights[j].mVertexId;
+            float weight = bone->mWeights[j].mWeight;
+
+            const auto data = std::make_tuple(bone_index, weight);
+            if (vertex_to_bone.contains(vertexID)) {
+                vertex_to_bone[vertexID].push_back(data);
+            } else {
+                vertex_to_bone[vertexID] = { data };
+            }
+        }
+    }
+
+    return vertex_to_bone;
 }
 
-struct VertexBoneData
-{
-	unsigned int IDs[4]; //!< An array of 4 bone Ids that influence a single vertex.
-	float Weights[4]; //!< An array of the weight influence per bone. 
+static std::shared_ptr<Animation> process_animation(
+    const aiScene *const scene,
+    const aiAnimation *const assimp_animation,
+    const std::shared_ptr<Armature>& meshes_armature
+) {
+    const auto animation_shared_ptr = std::shared_ptr<Animation>(
+        Animation::CreateAnimation(
+            assimp_animation->mDuration,
+            assimp_animation->mTicksPerSecond,
+            meshes_armature
+        )
+    );
 
-	VertexBoneData()
-	{
-		// 0's out the arrays. 
-		Reset();
-	}
+    glm::uint32 max_key_per_channel = 0;
+    for (unsigned int c = 0; c < assimp_animation->mNumChannels; ++c) {
+        const auto animated_bone = assimp_animation->mChannels[c];
+        const auto animated_bone_name = std::string(animated_bone->mNodeName.C_Str());
 
-	void Reset()
-	{
-		memset(IDs, 0, 4 * sizeof(IDs[0]));
-		memset(Weights, 0, 4 * sizeof(Weights[0]));
-	}
+        const auto armature_element_index_opt = meshes_armature->findArmatureNodeByName(animated_bone_name);
+        assert(armature_element_index_opt.has_value() && "Animation channel node not found in armature");
 
-	void AddBoneData(unsigned int BoneID, float Weight)
-	{
-		for (unsigned int i = 0; i < 4; i++) {
+        //auto ai_str_bone_name = aiString();
+        //ai_str_bone_name.Set(animated_bone_name.c_str());
+        //assert(scene->findBone(ai_str_bone_name) != nullptr && "Animated bone not found in skeleton metadata");
 
-			// Check to see if there are any empty weight values. 
-			if (Weights[i] == 0.0) {
-				// Add ID of bone. 
-				IDs[i] = BoneID;
+        //const auto bone_index_opt = meshes_armature->getSkeleton()->getBoneIndexByName(animated_bone_name);
+        //assert(bone_index_opt.has_value() && "Animation channel node not found in skeleton");
 
-				// Set the vertex weight influence for this bone ID. 
-				Weights[i] = Weight;
-				return;
-			}
+        std::cout << "  Channel for node " << animated_bone_name << " has " << animated_bone->mNumPositionKeys << " position keys, " << animated_bone->mNumRotationKeys << " rotation keys, and " << animated_bone->mNumScalingKeys << " scaling keys." << std::endl;
 
-		}
-		// should never get here - more bones than we have space for
-		assert(0);
-	}
-};
+        for (uint32_t pk = 0; pk < animated_bone->mNumPositionKeys; ++pk) {
+            const auto& position_key = animated_bone->mPositionKeys[pk];
+            std::cout << "    Position key at time " << position_key.mTime << ": (" << position_key.mValue.x << ", " << position_key.mValue.y << ", " << position_key.mValue.z << ")" << std::endl;
+        }
 
-// Stores bone information
-struct BoneInfo
-{
-	glm::mat4 FinalTransformation; // Final transformation to apply to vertices 
-	glm::mat4 BoneOffset; // Initial offset from local to bone space. 
+        for (uint32_t rk = 0; rk < animated_bone->mNumRotationKeys; ++rk) {
+            const auto& rotation_key = animated_bone->mRotationKeys[rk];
+            std::cout << "    Rotation key at time " << rotation_key.mTime << ": (" << rotation_key.mValue.x << ", " << rotation_key.mValue.y << ", " << rotation_key.mValue.z << ", " << rotation_key.mValue.w << ")" << std::endl;
+        }
 
-	BoneInfo()
-	{
-		BoneOffset = glm::mat4(1.0f);
-		FinalTransformation = glm::mat4(1.0f);
-	}
-};
+        for (uint32_t sk = 0; sk < animated_bone->mNumScalingKeys; ++sk) {
+            const auto& scaling_key = animated_bone->mScalingKeys[sk];
+            std::cout << "    Scaling key at time " << scaling_key.mTime << ": (" << scaling_key.mValue.x << ", " << scaling_key.mValue.y << ", " << scaling_key.mValue.z << ")" << std::endl;
+        }
 
-void load_bones(unsigned int MeshIndex, const aiMesh *pMesh, std::vector<VertexBoneData>& bones) {
-    // TODO: Loop through all bones in the Assimp mesh.
+        const auto debug = glm::max(animated_bone->mNumPositionKeys, glm::max(animated_bone->mNumRotationKeys, animated_bone->mNumScalingKeys));
+        max_key_per_channel = glm::max(max_key_per_channel, debug);
+
+        animation_shared_ptr->addChannel(
+            animated_bone_name,
+            // position keys
+            [&animated_bone]() {
+                std::vector<std::tuple<double, glm::vec3>> keys;
+                for (uint32_t pk = 0; pk < animated_bone->mNumPositionKeys; ++pk) {
+                    const auto& position_key = animated_bone->mPositionKeys[pk];
+                    keys.emplace_back(
+                        position_key.mTime,
+                        glm::vec3(position_key.mValue.x, position_key.mValue.y, position_key.mValue.z)
+                    );
+                }
+                return keys;
+            }(),
+            // rotation keys
+            [&animated_bone]() {
+                std::vector<std::tuple<double, glm::quat>> keys;
+                for (uint32_t rk = 0; rk < animated_bone->mNumRotationKeys; ++rk) {
+                    const auto& rotation_key = animated_bone->mRotationKeys[rk];
+                    keys.emplace_back(
+                        rotation_key.mTime,
+                        glm::quat(rotation_key.mValue.w, rotation_key.mValue.x, rotation_key.mValue.y, rotation_key.mValue.z)
+                    );
+                }
+                return keys;
+            }(),
+            // scaling keys
+            [&animated_bone]() {
+                std::vector<std::tuple<double, glm::vec3>> keys;
+                for (uint32_t sk = 0; sk < animated_bone->mNumScalingKeys; ++sk) {
+                    const auto& scaling_key = animated_bone->mScalingKeys[sk];
+                    keys.emplace_back(
+                        scaling_key.mTime,
+                        glm::vec3(scaling_key.mValue.x, scaling_key.mValue.y, scaling_key.mValue.z)
+                    );
+                }
+                return keys;
+            }()
+        );
+    }
+
+    std::cout << "[DEBUG]Max channel for this animation: " << assimp_animation->mNumChannels << std::endl;
+    std::cout << "[DEBUG]Max keys for this channel: " << max_key_per_channel << std::endl;
+
+    return animation_shared_ptr;
 }
 
-void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noexcept {
+static std::shared_ptr<ArmatureNode> process_armature(
+    const aiNode *const assimp_node,
+    std::weak_ptr<ArmatureNode> parent
+) {
+    const auto armature_node_ref = reinterpret_cast<ArmatureNodeRef>(assimp_node);
+    const auto node_name = std::string(assimp_node->mName.C_Str());
+
+    auto armature_node = std::make_shared<ArmatureNode>(
+        parent,
+        glm::transpose(glm::make_mat4(&assimp_node->mTransformation.a1)),
+        node_name,
+        armature_node_ref
+    );
+    for (unsigned int i = 0; i < assimp_node->mNumChildren; ++i) {
+        const auto child_node = process_armature(
+            assimp_node->mChildren[i],
+            armature_node
+        );
+
+        assert(child_node != nullptr && "Child armature node is null");
+        armature_node->addChild(child_node);
+    }
+
+    return armature_node;
+}
+
+std::optional<SceneElementReference> Scene::load_asset(
+    const std::string& name,
+    const char *const asset_name,
+    const glm::mat4& model
+) noexcept {
     std::filesystem::path asset_path(asset_name);
     if (!std::filesystem::exists(asset_path)) {
         std::cerr << "Asset file does not exist: " << asset_name << std::endl;
-        return;
+        return std::nullopt;
     }
 
     // aiProcess_CalcTangentSpace can be added if tangents are needed in the vertex shader
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(asset_name, aiProcess_PopulateArmatureData | aiProcess_LimitBoneWeights | aiProcess_SortByPType | aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | aiProcess_GenSmoothNormals);
+    const aiScene *const scene = importer.ReadFile(
+        asset_name,
+        (aiProcessPreset_TargetRealtime_Quality & ~aiProcess_SplitLargeMeshes) |
+        aiProcess_PopulateArmatureData |
+        aiProcess_LimitBoneWeights |
+        aiProcess_SortByPType |
+        aiProcess_Triangulate |
+        aiProcess_FlipUVs |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_GenSmoothNormals
+    );
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
         // Handle error
-        return;
+        return std::nullopt;
     }
 
     std::cout << "Successfully loaded " << scene->mRootNode->mNumChildren << " child nodes from asset: " << asset_name << std::endl;
+
+    const auto armature_tree = process_armature(
+        scene->mRootNode,
+        std::shared_ptr<ArmatureNode>(nullptr)
+    );
+    assert(armature_tree != nullptr && "Failed to process armature tree");
+
+    // process the armature data: create the root node of the armature hierarchy
+    auto meshes_armature = std::shared_ptr<Armature>(
+        Armature::CreateArmature(
+            armature_tree
+        )
+    );
+
+    // usato per tenere traccia delle ossa visitate
+    auto skeleton_tree = std::shared_ptr<SkeletonTree>(
+        SkeletonTree::CreateSkeletonTree(meshes_armature)
+    );
+
+    assert(skeleton_tree != nullptr && "Failed to create SkeletonTree");
+
+    std::vector<std::shared_ptr<Mesh>> meshes;
 
     // Process the scene's root node recursively
     for (unsigned int j = 0; j < scene->mNumMeshes; j++) {
@@ -115,11 +364,11 @@ void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noe
 
         // Create and fill VBO using buffer mapping (position.xyz [+ normal.xyz] + texcoord.uv interleaved)
         const GLuint vertex_count = mesh->mNumVertices;
-        const GLsizeiptr vertex_buffer_size = static_cast<GLsizeiptr>(vertex_count * 8u * sizeof(float));
+        const GLsizeiptr vertex_buffer_size = static_cast<GLsizeiptr>(vertex_count * sizeof(VertexData));
 
+        VertexBoneDataMap vertex_bone_data;
         if (mesh->HasBones()) {
-            std::vector<VertexBoneData> bones(vertex_count);
-            load_bones(j, mesh, bones);
+            vertex_bone_data = load_bones_for_mesh(scene, mesh, skeleton_tree);
         }
 
         const GLuint vbo = Mesh::CreateVertexBuffer(nullptr, vertex_buffer_size);
@@ -150,38 +399,89 @@ void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noe
 
         // map and write vertex data directly into GPU memory
         {
-            void *vptr = glMapBufferRange(GL_ARRAY_BUFFER, 0, vertex_buffer_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+            VertexData *const vptr = (VertexData*)glMapBufferRange(
+                GL_ARRAY_BUFFER,
+                0,
+                vertex_buffer_size,
+                GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT
+            );
             assert(vptr != nullptr && "Failed to map vertex buffer");
-            float *dest = static_cast<float*>(vptr);
+
             for (unsigned int vi = 0; vi < mesh->mNumVertices; ++vi) {
+                VertexData *dest = &vptr[vi];
+
                 const aiVector3D &pos = mesh->mVertices[vi];
-                *dest++ = pos.x;
-                *dest++ = pos.y;
-                *dest++ = pos.z;
+                dest->position_x = pos.x;
+                dest->position_y = pos.y;
+                dest->position_z = pos.z;
 
                 // normal
                 if (hasNormals) {
                     const aiVector3D &n = mesh->mNormals[vi];
-                    *dest++ = n.x;
-                    *dest++ = n.y;
-                    *dest++ = n.z;
+                    dest->normal_x = n.x;
+                    dest->normal_y = n.y;
+                    dest->normal_z = n.z;
                 } else {
                     const glm::vec3 &n = computed_normals[vi];
-                    *dest++ = n.x;
-                    *dest++ = n.y;
-                    *dest++ = n.z;
+                    dest->normal_x = n.x;
+                    dest->normal_y = n.y;
+                    dest->normal_y = n.z;
                 }
 
                 // texcoord
                 if (mesh->mTextureCoords[0]) {
                     const aiVector3D &uv = mesh->mTextureCoords[0][vi];
-                    *dest++ = uv.x;
-                    *dest++ = uv.y;
+                    dest->texcoord_u = uv.x;
+                    dest->texcoord_v = uv.y;
                 } else {
-                    *dest++ = 0.0f;
-                    *dest++ = 0.0f;
+                    dest->texcoord_u = 0.0f;
+                    dest->texcoord_v = 0.0f;
+                }
+
+                // bone data
+                if (vertex_bone_data.contains(vi)) {
+                    const auto& bone_data = vertex_bone_data[vi];
+                    
+                    assert(bone_data.size() <= 4 && "A vertex cannot be influenced by more than 4 bones");
+
+                    for (size_t bi = 0; bi < bone_data.size(); ++bi) {
+                        const auto [bone_index, weight] = bone_data[bi];
+                        switch (bi) {
+                            case 0:
+                                dest->bone_index_0 = bone_index;
+                                dest->bone_weight_0 = weight;
+                                break;
+                            case 1:
+                                dest->bone_index_1 = bone_index;
+                                dest->bone_weight_1 = weight;
+                                break;
+                            case 2:
+                                dest->bone_index_2 = bone_index;
+                                dest->bone_weight_2 = weight;
+                                break;
+                            case 3:
+                                dest->bone_index_3 = bone_index;
+                                dest->bone_weight_3 = weight;
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                } else {
+                    dest->bone_index_0 = BONE_IS_ROOT;
+                    dest->bone_weight_0 = 0.0f;
+
+                    dest->bone_index_1 = BONE_IS_ROOT;
+                    dest->bone_weight_1 = 0.0f;
+
+                    dest->bone_index_2 = BONE_IS_ROOT;
+                    dest->bone_weight_2 = 0.0f;
+
+                    dest->bone_index_3 = BONE_IS_ROOT;
+                    dest->bone_weight_3 = 0.0f;
                 }
             }
+
             glUnmapBuffer(GL_ARRAY_BUFFER);
         }
 
@@ -243,8 +543,44 @@ void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noe
         );
 
         // Store mesh with VBO and IBO (ibo_count = number of indices). Normals are always present (either loaded or generated).
-        m_meshes.emplace_back(std::make_unique<Mesh>(vbo, ibo, static_cast<GLuint>(total_indices), material, model));
+        meshes.emplace_back(
+            std::make_unique<Mesh>(
+                vbo,
+                ibo,
+                static_cast<GLuint>(total_indices),
+                material,
+                skeleton_tree,
+                model
+            )
+        );
     }
+
+    std::unordered_map<std::string, std::shared_ptr<Animation>> animations_map;
+
+    for (unsigned int a = 0; a < scene->mNumAnimations; ++a) {
+        const auto animation = scene->mAnimations[a];
+
+        const auto animation_name = (animation->mName.C_Str());
+
+        std::cout << "Animation " << animation_name << " has duration " << animation->mDuration << " ticks at " << animation->mTicksPerSecond << " ticks/second." << std::endl;
+    
+        const auto animation_shared_ptr = std::shared_ptr<Animation>(
+            process_animation(scene, animation, meshes_armature)
+        );
+
+        // store the animation
+        animations_map[animation_name] = animation_shared_ptr;
+    }
+
+    m_elements[name] = std::move(
+        std::make_unique<SceneElement>(
+            std::move(meshes),
+            std::move(skeleton_tree),
+            std::move(animations_map)
+        )
+    );
+
+    return name;
 }
 
 std::shared_ptr<Texture> Scene::assimp_load_texture(
@@ -347,8 +683,8 @@ std::shared_ptr<Camera> Scene::getCamera() const noexcept {
 }
 
 void Scene::foreachMesh(std::function<void(const Mesh&)> fn) const noexcept {
-    for (const auto& mesh : m_meshes) {
-        fn(*mesh);
+    for (const auto& element : m_elements) {
+        element.second->foreachMesh(fn);
     }
 }
 
@@ -410,4 +746,109 @@ void Scene::foreachConeLight(
     for (const auto& light : m_cone_lights) {
         fn(light.second);
     }
+}
+
+void Scene::update(double deltaTime) noexcept {
+    for (auto& element : m_elements) {
+        // Update animations
+        element.second->advanceTime(static_cast<float>(deltaTime));
+
+        // TODO: Update per-frame bone data here (if animation hasn't ended)
+        const auto anim_time = element.second->getAnimationTime();
+        if (!anim_time.has_value()) continue;
+        m_animation_compute_program->bind();
+
+        // Provide time to the animation compute shader in the same units as the animation keys (ticks)
+        const auto anim = element.second->getCurrentAnimation();
+        assert(anim && "Current animation must be available when animation time is valid");
+        const float ticks_per_second = static_cast<float>(anim->getTicksPerSecond() > 0.0 ? anim->getTicksPerSecond() : 1.0);
+        const float time_in_ticks = static_cast<float>(anim_time.value()) * ticks_per_second;
+        m_animation_compute_program->uniformFloat("u_DeltaTime", time_in_ticks);
+        // Provide number of valid animation channels to the compute shader
+        m_animation_compute_program->uniformUint("u_AnimationChannelCount", anim->getChannelsCount());
+
+        const auto skeleton = element.second->getSkeleton();
+        assert(skeleton && "Armature must have an associated SkeletonTree");
+
+        // We require the element to have an armature, a skeleton and a currently-playing animation.
+        const auto armature = skeleton->getArmature();
+        assert(armature && "Scene element must have an armature for animation compute");
+
+        // Bind SSBOs to the exact block names / bindings used by the compute shader (see shaders/animate.comp)
+        m_animation_compute_program->uniformStorageBufferBinding("OriginalSkeletonBuffer", skeleton->getOriginalBuffer());
+        m_animation_compute_program->uniformStorageBufferBinding("PerFrameSkeletonBuffer", skeleton->getPerFrameBuffer());
+        m_animation_compute_program->uniformStorageBufferBinding("ArmatureBuffer", armature->getNodesBuffer());
+        m_animation_compute_program->uniformStorageBufferBinding("AnimationBuffer", anim->getChannelsBuffer());
+
+        // Compute dispatch size from shader local size (animate.comp uses local_size_x = 16)
+        const GLuint bones = static_cast<GLuint>(skeleton->getBoneCount());
+        const GLuint local_size_x = 16u; // must match compute shader local size
+        const GLuint groups_x = (bones == 0u) ? 1u : ((bones + local_size_x - 1u) / local_size_x);
+        m_animation_compute_program->dispatchCompute(groups_x, 1, 1);
+    }
+}
+
+bool Scene::startAnimation(
+    const SceneElementReference& element_ref,
+    const std::string& animation_name
+) noexcept {
+    auto it = m_elements.find(element_ref);
+    if (it == m_elements.end()) {
+        std::cerr << "Scene element " << element_ref << " not found." << std::endl;
+        return false;
+    }
+
+    SceneElement *const element = it->second.get();
+    if (!element->startAnimation(animation_name)) {
+        std::cerr << "Failed to start animation " << animation_name << " on element " << element_ref << "." << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+std::optional<std::string> Scene::getAnimationName(
+    const SceneElementReference& element_ref,
+    size_t index
+) const noexcept {
+    auto it = m_elements.find(element_ref);
+    if (it == m_elements.end()) {
+        std::cerr << "Scene element " << element_ref << " not found." << std::endl;
+        return std::nullopt;
+    }
+
+    const SceneElement *const element = it->second.get();
+    const auto& animations = element->getAnimations();
+
+    if (index >= animations.size()) {
+        std::cerr << "Animation index " << index << " out of range for element " << element_ref << "." << std::endl;
+        return std::nullopt;
+    }
+
+    auto anim_it = animations.begin();
+    std::advance(anim_it, index);
+    return anim_it->first;
+}
+
+static std::string animation_shader_source_str(reinterpret_cast<const char*>(animate_comp_glsl), animate_comp_glsl_len);
+static const GLchar *const animate_comp_shader_source = animation_shader_source_str.c_str();
+
+Scene* Scene::CreateScene() noexcept {
+    std::unique_ptr<ComputeShader> animation_compute_shader(
+        ComputeShader::CompileShader(
+            reinterpret_cast<const char*>(animate_comp_shader_source)
+        )
+    );
+
+    assert(animation_compute_shader != nullptr && "Failed to compile animation compute shader");
+
+    std::unique_ptr<Program> animation_compute_program(
+        Program::LinkProgram(
+            animation_compute_shader.get()
+        )
+    );
+
+    assert(animation_compute_program != nullptr && "Failed to link animation compute shader program");
+
+    return new Scene(std::move(animation_compute_program));
 }

@@ -7,6 +7,7 @@ Mesh::Mesh(
     GLuint vbi,
     GLuint ibo_count,
     std::shared_ptr<Material> material,
+    std::shared_ptr<SkeletonTree> m_skeleton_tree,
     const glm::mat4& model
 ) noexcept :
     m_vao(0),
@@ -14,33 +15,61 @@ Mesh::Mesh(
     m_ibo(vbi),
     m_ibo_count(ibo_count),
     m_material(material),
-    m_model_matrix(model)
+    m_model_matrix(model),
+    m_skeleton_tree(m_skeleton_tree)
 {
     // Create and configure a VAO that captures the vertex attribute setup
-    glGenVertexArrays(1, &m_vao);
+    CHECK_GL_ERROR(glGenVertexArrays(1, &m_vao));
 
     assert(m_vao != 0 && "Failed to generate vao");
 
-    glBindVertexArray(m_vao);
+    CHECK_GL_ERROR(glBindVertexArray(m_vao));
 
     // Bind the vertex and index buffers to set up attribute pointers
-    glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ibo);
+    CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, m_vbo));
+    CHECK_GL_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ibo));
 
     // Always use vertex layout: vec3 position (location=0), vec3 normal (location=2), vec2 texcoord (location=1)
-    constexpr GLsizei stride = 8 * sizeof(float);
+    constexpr GLsizei stride = sizeof(VertexData);
+
     // position
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (const void*)0);
+    CHECK_GL_ERROR(glEnableVertexAttribArray(0));
+    CHECK_GL_ERROR(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (const void*)((uintptr_t)(offsetof(VertexData, position_x)))));
+
     // normal
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(3 * sizeof(float)));
+    CHECK_GL_ERROR(glEnableVertexAttribArray(2));
+    CHECK_GL_ERROR(glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (const void*)((uintptr_t)(offsetof(VertexData, normal_x)))));
+
     // texcoord
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (const void*)(6 * sizeof(float)));
+    CHECK_GL_ERROR(glEnableVertexAttribArray(1));
+    CHECK_GL_ERROR(glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (const void*)((uintptr_t)(offsetof(VertexData, texcoord_u)))));
+
+    // bone_index_0 and bone_weight_0
+    CHECK_GL_ERROR(glEnableVertexAttribArray(3));
+    CHECK_GL_ERROR(glVertexAttribIPointer(3, 1, GL_UNSIGNED_INT, stride, (const void*)((uintptr_t)(offsetof(VertexData, bone_index_0)))));
+    CHECK_GL_ERROR(glEnableVertexAttribArray(4));
+    CHECK_GL_ERROR(glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, stride, (const void*)((uintptr_t)(offsetof(VertexData, bone_weight_0)))));
+
+    // bone_index_1 and bone_weight_1
+    CHECK_GL_ERROR(glEnableVertexAttribArray(5));
+    CHECK_GL_ERROR(glVertexAttribIPointer(5, 1, GL_UNSIGNED_INT, stride, (const void*)((uintptr_t)(offsetof(VertexData, bone_index_1)))));
+    CHECK_GL_ERROR(glEnableVertexAttribArray(6));
+    CHECK_GL_ERROR(glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, stride, (const void*)((uintptr_t)(offsetof(VertexData, bone_weight_1)))));
+
+    // bone_index_2 and bone_weight_2
+    CHECK_GL_ERROR(glEnableVertexAttribArray(7));
+    CHECK_GL_ERROR(glVertexAttribIPointer(7, 1, GL_UNSIGNED_INT, stride, (const void*)((uintptr_t)(offsetof(VertexData, bone_index_2)))));
+    CHECK_GL_ERROR(glEnableVertexAttribArray(8));
+    CHECK_GL_ERROR(glVertexAttribPointer(8, 1, GL_FLOAT, GL_FALSE, stride, (const void*)((uintptr_t)(offsetof(VertexData, bone_weight_2)))));
+
+    // bone_index_3 and bone_weight_3
+    CHECK_GL_ERROR(glEnableVertexAttribArray(9));
+    CHECK_GL_ERROR(glVertexAttribIPointer(9, 1, GL_UNSIGNED_INT, stride, (const void*)((uintptr_t)(offsetof(VertexData, bone_index_3)))));
+    CHECK_GL_ERROR(glEnableVertexAttribArray(10));
+    CHECK_GL_ERROR(glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, stride, (const void*)((uintptr_t)(offsetof(VertexData, bone_weight_3)))));
 
     // Unbind VAO to avoid accidental modifications
-    glBindVertexArray(0);
+    CHECK_GL_ERROR(glBindVertexArray(0));
 }
 
 std::shared_ptr<Material> Mesh::getMaterial() const noexcept {
@@ -65,15 +94,27 @@ Mesh::~Mesh() noexcept {
 void Mesh::draw(
     GLuint diffuse_color_location,
     GLuint material_uniform_location,
-    GLint shininess_location
+    GLint shininess_location,
+    GLint skeleton_binding
 ) const noexcept {
     // bind texture to unit 0 if using texture and upload material state
     getMaterial()->bindRenderState(diffuse_color_location, material_uniform_location, shininess_location);
 
     // Bind the VAO which already has the vertex attribute state
+    // If this mesh has a skeleton, bind its SSBO to binding point 0 so shaders can access it.
+    if (m_skeleton_tree && skeleton_binding >= 0) {
+        assert(skeleton_binding >= 0 && "Missing skeleton binding point for Mesh draw with skeleton");
+        m_skeleton_tree->bind(static_cast<GLuint>(skeleton_binding));
+    }
+
     glBindVertexArray(m_vao);
     glDrawElements(GL_TRIANGLES, m_ibo_count, GL_UNSIGNED_INT, nullptr);
     glBindVertexArray(0);
+
+    // Unbind the SSBO from the binding point to avoid accidental reuse.
+    if (m_skeleton_tree && skeleton_binding >= 0) {
+        CHECK_GL_ERROR(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(skeleton_binding), 0));
+    }
 }
 
 GLuint Mesh::CreateVertexBuffer(const void *const data, GLsizeiptr size) noexcept {

@@ -6,6 +6,8 @@
 #include <cassert>
 #include <string>
 
+#include "Scene.hpp"
+
 #include "embedded_shaders_symbols.h"
 
 static std::string vertex_shader_source_str(reinterpret_cast<const char*>(unshadowed_vert_glsl), unshadowed_vert_glsl_len);
@@ -59,14 +61,14 @@ UnshadowedPipeline::~UnshadowedPipeline() noexcept {
     // `m_render_quad` will clean up its own VAO/VBO in its destructor.
 }
 
-void UnshadowedPipeline::render(const Scene& scene) noexcept {
+void UnshadowedPipeline::render(const Scene *const scene) noexcept {
     // 1) Geometry pass -> fill G-buffer (albedo, specular, normal) + depth
     if (m_gbuffer) {
         withFramebuffer(m_gbuffer.get(), [&]() {
             withEnabledDepthTest([&]() {
                 withFaceCulling([&]() {
                     // build matrices
-                    auto camera = scene.getCamera();
+                    auto camera = scene->getCamera();
                     if (!camera) {
                         std::cerr << "Scene::render: No camera set in the scene!" << std::endl;
                         return;
@@ -94,8 +96,20 @@ void UnshadowedPipeline::render(const Scene& scene) noexcept {
                     const auto material_flags_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_material_flags");
                     const auto shininess_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_Shininess");
 
+                    // Find SSBO binding for `SkeletonBuffer` (if present) in the currently bound program
+                    auto find_ssbo_binding = [](GLuint program, const char* block_name) -> GLint {
+                        const GLuint index = glGetProgramResourceIndex(program, GL_SHADER_STORAGE_BLOCK, block_name);
+                        if (index == GL_INVALID_INDEX) return -1;
+                        GLenum props[1] = { GL_BUFFER_BINDING };
+                        GLint binding = -1;
+                        glGetProgramResourceiv(program, GL_SHADER_STORAGE_BLOCK, index, 1, props, 1, nullptr, &binding);
+                        return binding;
+                    };
+
+                    const GLint skeleton_binding = find_ssbo_binding(m_unshadowed_program->getProgram(), "SkeletonBuffer");
+
                     // Draw each mesh using its own model matrix
-                    scene.foreachMesh([&](const Mesh& mesh) {
+                    scene->foreachMesh([&](const Mesh& mesh) {
                         const glm::mat4 model_matrix = mesh.getModelMatrix();
                         const glm::mat4 mvp = proj * view * model_matrix;
                         const glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
@@ -104,7 +118,7 @@ void UnshadowedPipeline::render(const Scene& scene) noexcept {
                         m_unshadowed_program->uniformMat4x4("u_ModelMatrix", model_matrix);
                         m_unshadowed_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
 
-                        mesh.draw(diffuse_color_location, material_flags_location, shininess_location);
+                        mesh.draw(diffuse_color_location, material_flags_location, shininess_location, skeleton_binding);
                     });
                 });
             });
@@ -113,7 +127,7 @@ void UnshadowedPipeline::render(const Scene& scene) noexcept {
 
     size_t last_used_lightbuffer_index = 0;
 
-    const auto ambient_light = scene.getAmbientLight();
+    const auto ambient_light = scene->getAmbientLight();
     const auto ambient_light_intensity = ambient_light ? ambient_light->getColorWithIntensity() : glm::vec3(0.0f);
 
     // 2) Ambient light pass: copy ambient light to ambient lightbuffer
@@ -136,7 +150,7 @@ void UnshadowedPipeline::render(const Scene& scene) noexcept {
     });
 
     // 3) Lighting pass: sample G-buffer and output lit color to lightbuffer
-    scene.foreachDirectionalLight([&](const DirectionalLight& dir_light) {
+    scene->foreachDirectionalLight([&](const DirectionalLight& dir_light) {
         const auto lightbuffer_index = (last_used_lightbuffer_index + 1) % 2;
 
         withFramebuffer(m_lightbuffer[lightbuffer_index].get(), [&]() {

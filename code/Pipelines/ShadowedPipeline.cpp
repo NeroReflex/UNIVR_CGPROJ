@@ -7,7 +7,18 @@
 #include <string>
 #include <random>
 
+#include "Scene.hpp"
+
 #include "embedded_shaders_symbols.h"
+
+static GLint find_ssbo_binding(GLuint program, const char* block_name) {
+    const GLuint index = glGetProgramResourceIndex(program, GL_SHADER_STORAGE_BLOCK, block_name);
+    if (index == GL_INVALID_INDEX) return -1;
+    GLenum props[1] = { GL_BUFFER_BINDING };
+    GLint binding = -1;
+    glGetProgramResourceiv(program, GL_SHADER_STORAGE_BLOCK, index, 1, props, 1, nullptr, &binding);
+    return binding;
+}
 
 static std::string vertex_shader_source_str(reinterpret_cast<const char*>(unshadowed_vert_glsl), unshadowed_vert_glsl_len);
 static const GLchar *const vertex_shader_source = vertex_shader_source_str.c_str();
@@ -125,8 +136,8 @@ ShadowedPipeline::~ShadowedPipeline() noexcept {
     // `m_render_quad` will clean up its own VAO/VBO in its destructor.
 }
 
-void ShadowedPipeline::render(const Scene& scene) noexcept {
-    const auto camera = scene.getCamera();
+void ShadowedPipeline::render(const Scene *const scene) noexcept {
+    const auto camera = scene->getCamera();
 
     const GLint width = m_gbuffer->getWidth();
     const GLint height = m_gbuffer->getHeight();
@@ -167,7 +178,19 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                     const auto material_flags_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_material_flags");
                     const auto shininess_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_Shininess");
 
-                    scene.foreachMesh([&](const Mesh& mesh) {
+                    // Find SSBO binding for `SkeletonBuffer` (if present) in the currently bound program
+                    auto find_ssbo_binding = [](GLuint program, const char* block_name) -> GLint {
+                        const GLuint index = glGetProgramResourceIndex(program, GL_SHADER_STORAGE_BLOCK, block_name);
+                        if (index == GL_INVALID_INDEX) return -1;
+                        GLenum props[1] = { GL_BUFFER_BINDING };
+                        GLint binding = -1;
+                        glGetProgramResourceiv(program, GL_SHADER_STORAGE_BLOCK, index, 1, props, 1, nullptr, &binding);
+                        return binding;
+                    };
+
+                    const GLint skeleton_binding = find_ssbo_binding(m_unshadowed_program->getProgram(), "SkeletonBuffer");
+
+                    scene->foreachMesh([&](const Mesh& mesh) {
                         const glm::mat4 model_matrix = mesh.getModelMatrix();
                         const glm::mat4 mvp = proj * view * model_matrix;
                         const glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
@@ -176,7 +199,7 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                         m_unshadowed_program->uniformMat4x4("u_ModelMatrix", model_matrix);
                         m_unshadowed_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
 
-                        mesh.draw(diffuse_color_location, material_flags_location, shininess_location);
+                        mesh.draw(diffuse_color_location, material_flags_location, shininess_location, skeleton_binding);
                     });
                 });
             });
@@ -185,7 +208,7 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
 
     size_t last_used_lightbuffer_index = 0;
 
-    const auto ambient_light = scene.getAmbientLight();
+    const auto ambient_light = scene->getAmbientLight();
     const auto ambient_light_intensity = ambient_light ? ambient_light->getColorWithIntensity() : glm::vec3(0.0f);
 
     // 2.1) SSAO pass: generate the SSAO texture
@@ -250,7 +273,7 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
     });
 
     // 4.a) Directional lights pass: sample G-buffer and output lit color to lightbuffer
-    scene.foreachDirectionalLight([&](const DirectionalLight& dir_light) {
+    scene->foreachDirectionalLight([&](const DirectionalLight& dir_light) {
 
         // set up light view/proj matrices (use minus sign to position the light "backwards" along its direction)
         const auto camera_pos = camera->getCameraPosition();
@@ -288,11 +311,14 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                     // bind shadow map generation program
                     m_depth_only_program->bind();
 
-                    scene.foreachMesh([&](const Mesh& mesh) {
+                    // Depth-only pass program bound; try to find skeleton binding for depth program (likely -1)
+                    const GLint depth_skeleton_binding = find_ssbo_binding(m_depth_only_program->getProgram(), "SkeletonBuffer");
+
+                    scene->foreachMesh([&](const Mesh& mesh) {
                         const glm::mat4 model_matrix = mesh.getModelMatrix();
                         const glm::mat4 ls = light_space_matrix * model_matrix;
                         m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", ls);
-                        mesh.draw(0, 0, 0);
+                        mesh.draw(0, 0, 0, depth_skeleton_binding);
                     });
                 });
             });
@@ -331,7 +357,7 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
     });
 
     // 4.b) Cone (spot) lights: unshadowed cone lights applied additively
-    scene.foreachConeLight([&](const ConeLight& cone) {
+    scene->foreachConeLight([&](const ConeLight& cone) {
         const auto lightbuffer_index = (last_used_lightbuffer_index + 1) % 2;
 
         const auto light_znear = cone.getZNear();
@@ -364,11 +390,14 @@ void ShadowedPipeline::render(const Scene& scene) noexcept {
                     // bind shadow map generation program
                     m_depth_only_program->bind();
 
-                    scene.foreachMesh([&](const Mesh& mesh) {
+                    // Depth-only pass for cone light
+                    const GLint depth_skeleton_binding = find_ssbo_binding(m_depth_only_program->getProgram(), "SkeletonBuffer");
+
+                    scene->foreachMesh([&](const Mesh& mesh) {
                         const glm::mat4 model_matrix = mesh.getModelMatrix();
                         const glm::mat4 ls = light_space_matrix * model_matrix;
                         m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", ls);
-                        mesh.draw(0, 0, 0);
+                        mesh.draw(0, 0, 0, depth_skeleton_binding);
                     });
                 });
             });

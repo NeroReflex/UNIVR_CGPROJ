@@ -86,7 +86,11 @@ int main(int argc, char **argv)
     // Use GLSL ES 3.0 shader prefix that ImGui backend recognizes
     ImGui_ImplOpenGL3_Init("#version 300 es");
 
-    std::shared_ptr<Scene> scene = std::make_shared<Scene>();
+    const auto scene = std::shared_ptr<Scene>(
+        Scene::CreateScene()
+    );
+
+    assert(scene != nullptr && "Failed to create Scene");
 
     auto camera = std::shared_ptr<Camera>(
         new SpectatorCamera(
@@ -111,11 +115,17 @@ int main(int argc, char **argv)
         */
     );
 
-    scene->load_asset(argv[1]);
+    const auto custom_model_ref = scene->load_asset("main_model", argv[1]);
+    assert(custom_model_ref.has_value() && "Failed to load main 3D asset");
 
     // HACK: se trovo il minotauro lo carico per testare le animazioni
-    if (std::filesystem::exists("animazioni/Minotaur@Attack.FBX")) {
-        scene->load_asset("animazioni/Minotaur@Attack.FBX");
+    std::optional<SceneElementReference> minotaur_ref;
+    std::optional<std::string> minotaur_animation_name;
+    if (std::filesystem::exists("animazioni/Minotaur@Jump.FBX")) {
+        minotaur_ref = scene->load_asset("minotaur", "animazioni/Minotaur@Jump.FBX");
+        minotaur_animation_name = scene->getAnimationName(minotaur_ref.value(), 0);
+        assert(minotaur_ref.has_value() && "Failed to load Minotaur asset");
+        assert(minotaur_animation_name.has_value() && "Minotaur asset has no animations");
     }
 
     scene->setAmbientLight(
@@ -522,12 +532,16 @@ int main(int argc, char **argv)
 
         ImGui::End();
 
+        // Update the scene (animations, etc.)
+        scene->update(deltaTime);
+
         // Render the scene
-        const auto render_scene = scene.get();
-        if (!render_scene) {
-            std::cerr << "No scene to render!" << std::endl;
-        } else {
-            pipeline->render(*render_scene);
+        scene->render(pipeline.get());
+
+        if (minotaur_ref.has_value() && minotaur_animation_name.has_value()) {
+            if (scene->startAnimation(minotaur_ref.value(), minotaur_animation_name.value())) {
+                std::cout << "Started 'Jump' animation on Minotaur" << std::endl;
+            }
         }
 
         // Render ImGui

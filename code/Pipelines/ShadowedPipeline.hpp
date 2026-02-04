@@ -11,7 +11,7 @@ class ShadowedPipeline : public Pipeline {
 public:
     ~ShadowedPipeline() noexcept override;
 
-    void render(const Scene& scene) noexcept override;
+    void render(const Scene *const scene) noexcept override;
 
     bool resize(GLsizei width, GLsizei height) noexcept override;
 

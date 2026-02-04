@@ -7,7 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 add_library(cg_lib STATIC
     ./code/OpenGL.cpp
     ./code/Buffer.cpp
+    ./code/Animation.cpp
+    ./code/Armature.cpp
     ./code/Mesh.cpp
+    ./code/SkeletonTree.cpp
     ./code/Material.cpp
     ./code/Texture.cpp
     ./code/Scene.cpp
@@ -53,6 +56,10 @@ find_program(GLSLANG_VALIDATOR glslangValidator)
 if(GLSLANG_VALIDATOR)
     message(STATUS "Found glslangValidator: ${GLSLANG_VALIDATOR}")
     set(SHADER_FILES
+        # non usato: reference per quando spacco il vero animate.comp
+        animate_bind_pose.comp
+
+        animate.comp
         unshadowed.vert
         unshadowed.geom
         unshadowed.frag
@@ -301,6 +308,9 @@ if(DEFINED SDL2_MAIN_LIB)
     target_link_libraries(project PRIVATE ${SDL2_MAIN_LIB})
 endif()
 set_target_properties(project PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+
+# Enable GLM experimental features
+add_compile_definitions(GLM_ENABLE_EXPERIMENTAL=1)
 
 # Da qui in poi uso GLFW
 
