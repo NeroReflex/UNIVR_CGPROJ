@@ -23,7 +23,10 @@ static std::tuple<GLint, GLenum, GLenum> get_native_format(const FramebufferColo
             return { GL_RGBA32F, GL_RGBA,  GL_FLOAT };
         default:
             assert(1 == 0 && "Unknown framebuffer color format");
-    } 
+    }
+
+    // solve a warning about reacing end of non-void function
+    return { GL_R8, GL_RED, GL_UNSIGNED_BYTE };
 }
 
 Framebuffer::Framebuffer(
