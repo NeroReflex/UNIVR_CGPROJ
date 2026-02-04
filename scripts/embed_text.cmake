@@ -19,9 +19,9 @@ math(EXPR BYTELEN "${HEXLEN} / 2")
 math(EXPR LAST_INDEX "${BYTELEN} - 1")
 
 set(out "// Generated from ${INPUT}\n")
-set(out "#include <cstddef>\n#include <cstdint>\n\n")
+set(out "#include <stddef.h>\n#include <stdint.h>\n\n")
 set(out "#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n")
-set(out "const unsigned char ${SYMBOL}[] = {\n")
+set(out "unsigned char ${SYMBOL}[] = {\n")
 
 foreach(i RANGE ${LAST_INDEX})
   math(EXPR start "${i} * 2")
@@ -34,8 +34,8 @@ foreach(i RANGE ${LAST_INDEX})
   endif()
 endforeach()
 
-set(out "};\n\nconst unsigned int ${SYMBOL}_len = ${BYTELEN};\n\n")
-set(out "#ifdef __cplusplus\n}\n#endif\n")
+set(out "${out}};\n\nunsigned int ${SYMBOL}_len = ${BYTELEN};\n\n")
+set(out "${out}#ifdef __cplusplus\n}\n#endif\n")
 
 file(WRITE "${OUTPUT}" "${out}")
 message(STATUS "Embedded file: ${INPUT} -> ${OUTPUT} (${BYTELEN} bytes, symbol: ${SYMBOL})")

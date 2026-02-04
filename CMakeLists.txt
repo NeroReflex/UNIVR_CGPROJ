@@ -145,23 +145,14 @@ if(GLSLANG_VALIDATOR)
             set(fext_no_dot "")
         endif()
         set(xxd_src_sym "${fname}_${fext_no_dot}_glsl")
-        if (WIN32)
-            add_custom_command(
-                OUTPUT ${embed_src_c}
-                COMMAND ${CMAKE_COMMAND} -DINPUT=${SHADERS_SRC_DIR}/${f} -DOUTPUT=${embed_src_c} -DSYMBOL=${xxd_src_sym} -P ${CMAKE_SOURCE_DIR}/scripts/embed_text.cmake
-                DEPENDS ${SHADERS_SRC_DIR}/${f}
-                COMMENT "Embedding shader source ${SHADERS_SRC_DIR}/${f} -> ${embed_src_c} (symbol: ${xxd_src_sym})"
-                VERBATIM
-            )
-        else()
-            add_custom_command(
-                OUTPUT ${embed_src_c}
-                COMMAND /bin/sh -c "xxd -i -n ${xxd_src_sym} ${SHADERS_SRC_DIR}/${f} > ${embed_src_c}"
-                DEPENDS ${SHADERS_SRC_DIR}/${f}
-                COMMENT "Embedding shader source ${SHADERS_SRC_DIR}/${f} -> ${embed_src_c} (symbol: ${xxd_src_sym})"
-                VERBATIM
-            )
-        endif()
+        # Use the cross-platform CMake embedding script for shader sources
+        add_custom_command(
+            OUTPUT ${embed_src_c}
+            COMMAND ${CMAKE_COMMAND} -DINPUT=${SHADERS_SRC_DIR}/${f} -DOUTPUT=${embed_src_c} -DSYMBOL=${xxd_src_sym} -P ${CMAKE_SOURCE_DIR}/scripts/embed_text.cmake
+            DEPENDS ${SHADERS_SRC_DIR}/${f}
+            COMMENT "Embedding shader source ${SHADERS_SRC_DIR}/${f} -> ${embed_src_c} (symbol: ${xxd_src_sym})"
+            VERBATIM
+        )
         list(APPEND EMBEDDED_SRCS ${embed_src_c})
         # Map a short name like <name>_<ext>_glsl to the generated symbol and record externs
         set(short_src_sym "${fname}_${fext_no_dot}_glsl")
@@ -176,15 +167,13 @@ if(GLSLANG_VALIDATOR)
     add_dependencies(cg_lib embedded_shaders)
 
     # Add embedded sources to the project target
-    # Create an OBJECT library for the generated embedded sources so IDEs
-    # (Visual Studio) compile and link them reliably as part of the build.
     if(EMBEDDED_SRCS)
-        # OBJECT library approach may not link on some generators; create a
-        # STATIC library and link it into cg_lib to ensure symbols are present.
-        add_library(embedded_shaders_static STATIC ${EMBEDDED_SRCS})
+        # Create an OBJECT library so its object files can be included directly
+        # into `cg_lib` (works across generators including MSVC/Visual Studio).
+        add_library(embedded_shaders_obj OBJECT ${EMBEDDED_SRCS})
         set_source_files_properties(${EMBEDDED_SRCS} PROPERTIES GENERATED TRUE)
-        add_dependencies(embedded_shaders_static embedded_shaders)
-        target_link_libraries(cg_lib PRIVATE embedded_shaders_static)
+        add_dependencies(embedded_shaders_obj embedded_shaders)
+        target_sources(cg_lib PRIVATE $<TARGET_OBJECTS:embedded_shaders_obj>)
     endif()
 
     # expose the generated shader output dir to the compiler's include path so we can include the generated header
