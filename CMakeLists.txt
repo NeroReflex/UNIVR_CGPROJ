@@ -176,6 +176,10 @@ if(GLSLANG_VALIDATOR)
     add_dependencies(cg_lib embedded_shaders)
 
     # Add embedded sources to the project target
+    # Mark generated source files so generators (e.g. Visual Studio) include them
+    if(EMBEDDED_SRCS)
+        set_source_files_properties(${EMBEDDED_SRCS} PROPERTIES GENERATED TRUE)
+    endif()
     target_sources(cg_lib PRIVATE ${EMBEDDED_SRCS})
 
     # expose the generated shader output dir to the compiler's include path so we can include the generated header
