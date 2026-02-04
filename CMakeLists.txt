@@ -104,14 +104,24 @@ if(GLSLANG_VALIDATOR)
         string(REGEX REPLACE "\\.spv$" "" basename_no_spv ${basename})
         string(REPLACE "." "_" short_base ${basename_no_spv})
         set(xxd_sym "${short_base}_spv")
-        # Use xxd -i -n to produce a C array with the chosen symbol name (no path in symbol)
-        add_custom_command(
-            OUTPUT ${embed_cpp}
-            COMMAND /bin/sh -c "xxd -i -n ${xxd_sym} ${out} > ${embed_cpp}"
-            DEPENDS ${out}
-            COMMENT "Embedding SPIR-V ${out} -> ${embed_cpp} (symbol: ${xxd_sym})"
-            VERBATIM
-        )
+        if (WIN32)
+            add_custom_command(
+                OUTPUT ${embed_cpp}
+                COMMAND ${CMAKE_COMMAND} -DINPUT=${out} -DOUTPUT=${embed_cpp} -DSYMBOL=${xxd_sym} -P ${CMAKE_SOURCE_DIR}/cmake/embed_spirv.cmake
+                DEPENDS ${out}
+                COMMENT "Embedding SPIR-V ${out} -> ${embed_cpp} (symbol: ${xxd_sym})"
+                VERBATIM
+            )
+        else()
+            # Use xxd -i -n to produce a C array with the chosen symbol name (no path in symbol)
+            add_custom_command(
+                OUTPUT ${embed_cpp}
+                COMMAND /bin/sh -c "xxd -i -n ${xxd_sym} ${out} > ${embed_cpp}"
+                DEPENDS ${out}
+                COMMENT "Embedding SPIR-V ${out} -> ${embed_cpp} (symbol: ${xxd_sym})"
+                VERBATIM
+            )
+        endif()
         list(APPEND EMBEDDED_SRCS ${embed_cpp})
         # Record defines and externs for the generated symbol
         set(short_sym "${xxd_sym}")
@@ -135,13 +145,23 @@ if(GLSLANG_VALIDATOR)
             set(fext_no_dot "")
         endif()
         set(xxd_src_sym "${fname}_${fext_no_dot}_glsl")
-        add_custom_command(
-            OUTPUT ${embed_src_c}
-            COMMAND /bin/sh -c "xxd -i -n ${xxd_src_sym} ${SHADERS_SRC_DIR}/${f} > ${embed_src_c}"
-            DEPENDS ${SHADERS_SRC_DIR}/${f}
-            COMMENT "Embedding shader source ${SHADERS_SRC_DIR}/${f} -> ${embed_src_c} (symbol: ${xxd_src_sym})"
-            VERBATIM
-        )
+        if (WIN32)
+            add_custom_command(
+                OUTPUT ${embed_src_c}
+                COMMAND ${CMAKE_COMMAND} -DINPUT=${SHADERS_SRC_DIR}/${f} -DOUTPUT=${embed_src_c} -DSYMBOL=${xxd_src_sym} -P ${CMAKE_SOURCE_DIR}/cmake/embed_text.cmake
+                DEPENDS ${SHADERS_SRC_DIR}/${f}
+                COMMENT "Embedding shader source ${SHADERS_SRC_DIR}/${f} -> ${embed_src_c} (symbol: ${xxd_src_sym})"
+                VERBATIM
+            )
+        else()
+            add_custom_command(
+                OUTPUT ${embed_src_c}
+                COMMAND /bin/sh -c "xxd -i -n ${xxd_src_sym} ${SHADERS_SRC_DIR}/${f} > ${embed_src_c}"
+                DEPENDS ${SHADERS_SRC_DIR}/${f}
+                COMMENT "Embedding shader source ${SHADERS_SRC_DIR}/${f} -> ${embed_src_c} (symbol: ${xxd_src_sym})"
+                VERBATIM
+            )
+        endif()
         list(APPEND EMBEDDED_SRCS ${embed_src_c})
         # Map a short name like <name>_<ext>_glsl to the generated symbol and record externs
         set(short_src_sym "${fname}_${fext_no_dot}_glsl")
@@ -270,6 +290,8 @@ include_directories(
 # main project executable
 add_executable(project ./code/main.cpp)
 target_link_libraries(project PRIVATE cg_lib)
+
+set_target_properties(project PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
 # Da qui in poi uso GLFW
 
