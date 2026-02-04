@@ -126,7 +126,7 @@ jobs:
       - name: Package (Windows native)
         shell: powershell
         run: |
-          mkdir artifacts || true
+          if (-not (Test-Path artifacts)) { New-Item -ItemType Directory -Path artifacts | Out-Null }
           $exe = (Get-ChildItem -Path build-windows-native -Recurse -Filter project.exe -ErrorAction SilentlyContinue | Select-Object -First 1)
           if (-not $exe) { $exe = (Get-ChildItem -Path build-windows-native -Recurse -Filter *.exe -ErrorAction SilentlyContinue | Select-Object -First 1) }
           if (-not $exe) { Write-Error "No .exe found after native Windows build"; exit 1 }
