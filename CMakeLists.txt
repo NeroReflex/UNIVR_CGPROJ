@@ -107,7 +107,7 @@ if(GLSLANG_VALIDATOR)
         if (WIN32)
             add_custom_command(
                 OUTPUT ${embed_cpp}
-                COMMAND ${CMAKE_COMMAND} -DINPUT=${out} -DOUTPUT=${embed_cpp} -DSYMBOL=${xxd_sym} -P ${CMAKE_SOURCE_DIR}/cmake/embed_spirv.cmake
+                COMMAND ${CMAKE_COMMAND} -DINPUT=${out} -DOUTPUT=${embed_cpp} -DSYMBOL=${xxd_sym} -P ${CMAKE_SOURCE_DIR}/scripts/embed_spirv.cmake
                 DEPENDS ${out}
                 COMMENT "Embedding SPIR-V ${out} -> ${embed_cpp} (symbol: ${xxd_sym})"
                 VERBATIM
@@ -148,7 +148,7 @@ if(GLSLANG_VALIDATOR)
         if (WIN32)
             add_custom_command(
                 OUTPUT ${embed_src_c}
-                COMMAND ${CMAKE_COMMAND} -DINPUT=${SHADERS_SRC_DIR}/${f} -DOUTPUT=${embed_src_c} -DSYMBOL=${xxd_src_sym} -P ${CMAKE_SOURCE_DIR}/cmake/embed_text.cmake
+                COMMAND ${CMAKE_COMMAND} -DINPUT=${SHADERS_SRC_DIR}/${f} -DOUTPUT=${embed_src_c} -DSYMBOL=${xxd_src_sym} -P ${CMAKE_SOURCE_DIR}/scripts/embed_text.cmake
                 DEPENDS ${SHADERS_SRC_DIR}/${f}
                 COMMENT "Embedding shader source ${SHADERS_SRC_DIR}/${f} -> ${embed_src_c} (symbol: ${xxd_src_sym})"
                 VERBATIM
