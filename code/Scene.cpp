@@ -38,6 +38,60 @@ void Scene::render() const noexcept {
 
 }
 
+struct VertexBoneData
+{
+	unsigned int IDs[4]; //!< An array of 4 bone Ids that influence a single vertex.
+	float Weights[4]; //!< An array of the weight influence per bone. 
+
+	VertexBoneData()
+	{
+		// 0's out the arrays. 
+		Reset();
+	}
+
+	void Reset()
+	{
+		memset(IDs, 0, 4 * sizeof(IDs[0]));
+		memset(Weights, 0, 4 * sizeof(Weights[0]));
+	}
+
+	void AddBoneData(unsigned int BoneID, float Weight)
+	{
+		for (unsigned int i = 0; i < 4; i++) {
+
+			// Check to see if there are any empty weight values. 
+			if (Weights[i] == 0.0) {
+				// Add ID of bone. 
+				IDs[i] = BoneID;
+
+				// Set the vertex weight influence for this bone ID. 
+				Weights[i] = Weight;
+				return;
+			}
+
+		}
+		// should never get here - more bones than we have space for
+		assert(0);
+	}
+};
+
+// Stores bone information
+struct BoneInfo
+{
+	glm::mat4 FinalTransformation; // Final transformation to apply to vertices 
+	glm::mat4 BoneOffset; // Initial offset from local to bone space. 
+
+	BoneInfo()
+	{
+		BoneOffset = glm::mat4(1.0f);
+		FinalTransformation = glm::mat4(1.0f);
+	}
+};
+
+void load_bones(unsigned int MeshIndex, const aiMesh *pMesh, std::vector<VertexBoneData>& bones) {
+    // TODO: Loop through all bones in the Assimp mesh.
+}
+
 void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noexcept {
     std::filesystem::path asset_path(asset_name);
     if (!std::filesystem::exists(asset_path)) {
@@ -59,16 +113,19 @@ void Scene::load_asset(const char *const asset_name, const glm::mat4& model) noe
     for (unsigned int j = 0; j < scene->mNumMeshes; j++) {
         const auto *const mesh = scene->mMeshes[j];
 
-        // Determine whether the mesh provides normals; if not we'll compute per-vertex normals
-        const bool hasNormals = mesh->HasNormals() != 0;
-
         // Create and fill VBO using buffer mapping (position.xyz [+ normal.xyz] + texcoord.uv interleaved)
         const GLuint vertex_count = mesh->mNumVertices;
         const GLsizeiptr vertex_buffer_size = static_cast<GLsizeiptr>(vertex_count * 8u * sizeof(float));
 
+        if (mesh->HasBones()) {
+            std::vector<VertexBoneData> bones(vertex_count);
+            load_bones(j, mesh, bones);
+        }
+
         const GLuint vbo = Mesh::CreateVertexBuffer(nullptr, vertex_buffer_size);
 
-        // If normals are not provided by Assimp, compute them from faces
+        // Determine whether the mesh provides normals; if not we'll compute per-vertex normals
+        const bool hasNormals = mesh->HasNormals() != 0;
         std::vector<glm::vec3> computed_normals;
         if (!hasNormals) {
             computed_normals.assign(vertex_count, glm::vec3(0.0f));
