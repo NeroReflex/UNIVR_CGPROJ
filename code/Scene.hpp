@@ -105,7 +105,8 @@ class Scene {
 
 public:
     Scene(
-        std::unique_ptr<Program>&& animation_compute_program
+        std::unique_ptr<Program>&& animation_compute_program,
+        std::unique_ptr<Program>&& bind_pose_compute_program
     ) noexcept;
 
     ~Scene() = default;
@@ -193,4 +194,5 @@ private:
     std::shared_ptr<Camera> m_camera;
 
     std::unique_ptr<Program> m_animation_compute_program;
+    std::unique_ptr<Program> m_bind_pose_compute_program;
 };

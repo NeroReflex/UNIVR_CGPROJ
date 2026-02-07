@@ -120,12 +120,14 @@ void SceneElement::advanceTime(float delta_time) noexcept {
 }
 
 Scene::Scene(
-    std::unique_ptr<Program>&& animation_compute_program
+    std::unique_ptr<Program>&& animation_compute_program,
+    std::unique_ptr<Program>&& bind_pose_compute_program
 ) noexcept :
     m_elements(),
     m_ambient_light(),
     m_camera(nullptr),
-    m_animation_compute_program(std::move(animation_compute_program))
+    m_animation_compute_program(std::move(animation_compute_program)),
+    m_bind_pose_compute_program(std::move(bind_pose_compute_program))
 {
 
 }
@@ -212,30 +214,6 @@ static std::shared_ptr<Animation> process_animation(
         const auto armature_element_index_opt = meshes_armature->findArmatureNodeByName(animated_bone_name);
         assert(armature_element_index_opt.has_value() && "Animation channel node not found in armature");
 
-        //auto ai_str_bone_name = aiString();
-        //ai_str_bone_name.Set(animated_bone_name.c_str());
-        //assert(scene->findBone(ai_str_bone_name) != nullptr && "Animated bone not found in skeleton metadata");
-
-        //const auto bone_index_opt = meshes_armature->getSkeleton()->getBoneIndexByName(animated_bone_name);
-        //assert(bone_index_opt.has_value() && "Animation channel node not found in skeleton");
-
-        std::cout << "  Channel for node " << animated_bone_name << " has " << animated_bone->mNumPositionKeys << " position keys, " << animated_bone->mNumRotationKeys << " rotation keys, and " << animated_bone->mNumScalingKeys << " scaling keys." << std::endl;
-
-        for (uint32_t pk = 0; pk < animated_bone->mNumPositionKeys; ++pk) {
-            const auto& position_key = animated_bone->mPositionKeys[pk];
-            std::cout << "    Position key at time " << position_key.mTime << ": (" << position_key.mValue.x << ", " << position_key.mValue.y << ", " << position_key.mValue.z << ")" << std::endl;
-        }
-
-        for (uint32_t rk = 0; rk < animated_bone->mNumRotationKeys; ++rk) {
-            const auto& rotation_key = animated_bone->mRotationKeys[rk];
-            std::cout << "    Rotation key at time " << rotation_key.mTime << ": (" << rotation_key.mValue.x << ", " << rotation_key.mValue.y << ", " << rotation_key.mValue.z << ", " << rotation_key.mValue.w << ")" << std::endl;
-        }
-
-        for (uint32_t sk = 0; sk < animated_bone->mNumScalingKeys; ++sk) {
-            const auto& scaling_key = animated_bone->mScalingKeys[sk];
-            std::cout << "    Scaling key at time " << scaling_key.mTime << ": (" << scaling_key.mValue.x << ", " << scaling_key.mValue.y << ", " << scaling_key.mValue.z << ")" << std::endl;
-        }
-
         const auto debug = glm::max(animated_bone->mNumPositionKeys, glm::max(animated_bone->mNumRotationKeys, animated_bone->mNumScalingKeys));
         max_key_per_channel = glm::max(max_key_per_channel, debug);
 
@@ -279,9 +257,6 @@ static std::shared_ptr<Animation> process_animation(
             }()
         );
     }
-
-    std::cout << "[DEBUG]Max channel for this animation: " << assimp_animation->mNumChannels << std::endl;
-    std::cout << "[DEBUG]Max keys for this channel: " << max_key_per_channel << std::endl;
 
     return animation_shared_ptr;
 }
@@ -777,38 +752,48 @@ void Scene::update(double deltaTime) noexcept {
         // Update animations
         element.second->advanceTime(static_cast<float>(deltaTime));
 
-        // TODO: Update per-frame bone data here (if animation hasn't ended)
+        // Update per-frame bone data here
         const auto anim_time = element.second->getAnimationTime();
-        if (!anim_time.has_value()) continue;
-        m_animation_compute_program->bind();
-
-        // Provide time to the animation compute shader in the same units as the animation keys (ticks)
-        const auto anim = element.second->getCurrentAnimation();
-        assert(anim && "Current animation must be available when animation time is valid");
-        const float ticks_per_second = static_cast<float>(anim->getTicksPerSecond() > 0.0 ? anim->getTicksPerSecond() : 1.0);
-        const float time_in_ticks = static_cast<float>(anim_time.value()) * ticks_per_second;
-        m_animation_compute_program->uniformFloat("u_DeltaTime", time_in_ticks);
-        // Provide number of valid animation channels to the compute shader
-        m_animation_compute_program->uniformUint("u_AnimationChannelCount", anim->getChannelsCount());
-
         const auto skeleton = element.second->getSkeleton();
-        assert(skeleton && "Armature must have an associated SkeletonTree");
+        if (!skeleton) continue;
 
-        // We require the element to have an armature, a skeleton and a currently-playing animation.
         const auto armature = skeleton->getArmature();
-        assert(armature && "Scene element must have an armature for animation compute");
+        if (!armature) continue;
 
-        // Bind SSBOs to the exact block names / bindings used by the compute shader (see shaders/animate.comp)
-        m_animation_compute_program->uniformStorageBufferBinding("OriginalSkeletonBuffer", skeleton->getOriginalBuffer());
-        m_animation_compute_program->uniformStorageBufferBinding("PerFrameSkeletonBuffer", skeleton->getPerFrameBuffer());
-        m_animation_compute_program->uniformStorageBufferBinding("ArmatureBuffer", armature->getNodesBuffer());
-        m_animation_compute_program->uniformStorageBufferBinding("AnimationBuffer", anim->getChannelsBuffer());
-
-        // Compute dispatch size from shader local size (animate.comp uses local_size_x = 16)
         const GLuint bones = static_cast<GLuint>(skeleton->getBoneCount());
-        const GLuint local_size_x = 16u; // must match compute shader local size
+        const GLuint local_size_x = 32u; // must match compute shader local size
         const GLuint groups_x = (bones == 0u) ? 1u : ((bones + local_size_x - 1u) / local_size_x);
-        m_animation_compute_program->dispatchCompute(groups_x, 1, 1);
+
+        if (anim_time.has_value()) {
+            // Use the animation compute shader when an animation is active
+            m_animation_compute_program->bind();
+
+            // Provide time to the animation compute shader in the same units as the animation keys (ticks)
+            const auto anim = element.second->getCurrentAnimation();
+            assert(anim && "Current animation must be available when animation time is valid");
+            const float ticks_per_second = static_cast<float>(anim->getTicksPerSecond() > 0.0 ? anim->getTicksPerSecond() : 1.0);
+            const float time_in_ticks = static_cast<float>(anim_time.value()) * ticks_per_second;
+            m_animation_compute_program->uniformFloat("u_DeltaTime", time_in_ticks);
+
+            // Provide number of valid animation channels to the compute shader
+            m_animation_compute_program->uniformUint("u_AnimationChannelCount", anim->getChannelsCount());
+
+            // Bind SSBOs (animate.comp expects OriginalSkeletonBuffer, PerFrameSkeletonBuffer, ArmatureBuffer, AnimationBuffer)
+            m_animation_compute_program->uniformStorageBufferBinding("OriginalSkeletonBuffer", skeleton->getOriginalBuffer());
+            m_animation_compute_program->uniformStorageBufferBinding("PerFrameSkeletonBuffer", skeleton->getPerFrameBuffer());
+            m_animation_compute_program->uniformStorageBufferBinding("ArmatureBuffer", armature->getNodesBuffer());
+            m_animation_compute_program->uniformStorageBufferBinding("AnimationBuffer", anim->getChannelsBuffer());
+
+            m_animation_compute_program->dispatchCompute(groups_x, 1, 1);
+        } else {
+            // No animation active -> compute bind-pose per-frame skeleton
+            m_bind_pose_compute_program->bind();
+            m_bind_pose_compute_program->uniformStorageBufferBinding("OriginalSkeletonBuffer", skeleton->getOriginalBuffer());
+            m_bind_pose_compute_program->uniformStorageBufferBinding("PerFrameSkeletonBuffer", skeleton->getPerFrameBuffer());
+            m_bind_pose_compute_program->uniformStorageBufferBinding("ArmatureBuffer", armature->getNodesBuffer());
+
+            m_bind_pose_compute_program->dispatchCompute(groups_x, 1, 1);
+        }
     }
 }
 
@@ -857,6 +842,9 @@ std::optional<std::string> Scene::getAnimationName(
 static std::string animation_shader_source_str(reinterpret_cast<const char*>(animate_comp_glsl), animate_comp_glsl_len);
 static const GLchar *const animate_comp_shader_source = animation_shader_source_str.c_str();
 
+static std::string bindpose_shader_source_str(reinterpret_cast<const char*>(animate_bind_pose_comp_glsl), animate_bind_pose_comp_glsl_len);
+static const GLchar *const animate_bind_pose_comp_shader_source = bindpose_shader_source_str.c_str();
+
 Scene* Scene::CreateScene() noexcept {
     std::unique_ptr<ComputeShader> animation_compute_shader(
         ComputeShader::CompileShader(
@@ -874,5 +862,19 @@ Scene* Scene::CreateScene() noexcept {
 
     assert(animation_compute_program != nullptr && "Failed to link animation compute shader program");
 
-    return new Scene(std::move(animation_compute_program));
+    std::unique_ptr<ComputeShader> bindpose_compute_shader(
+        ComputeShader::CompileShader(
+            reinterpret_cast<const char*>(animate_bind_pose_comp_shader_source)
+        )
+    );
+    assert(bindpose_compute_shader != nullptr && "Failed to compile bind-pose compute shader");
+
+    std::unique_ptr<Program> bindpose_compute_program(
+        Program::LinkProgram(
+            bindpose_compute_shader.get()
+        )
+    );
+    assert(bindpose_compute_program != nullptr && "Failed to link bind-pose compute shader program");
+
+    return new Scene(std::move(animation_compute_program), std::move(bindpose_compute_program));
 }
