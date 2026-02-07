@@ -49,6 +49,8 @@ jobs:
       - name: Upload Linux asset to release
         if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
           asset_path: artifacts/project-linux.tar.gz
@@ -159,6 +161,8 @@ jobs:
       - name: Upload Windows native asset to release
         if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
           asset_path: artifacts/project-windows-native.zip
