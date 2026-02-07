@@ -19,7 +19,6 @@ struct SkeletonGPUElement {
 struct ArmatureGPUElement {
     mat4 transform;
 
-    // 0 means root/no parent
     uint parent_index;
 };
 

@@ -20,7 +20,6 @@ class SkeletonTree;
 struct ArmatureGPUElement {
     glm::mat4 transform;
 
-    // 0 means root/no parent
     uint32_t parent_index;
 
     uint32_t padding_1[3];

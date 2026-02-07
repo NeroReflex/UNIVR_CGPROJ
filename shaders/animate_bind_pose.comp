@@ -19,7 +19,6 @@ struct SkeletonGPUElement {
 struct ArmatureGPUElement {
     mat4 transform;
 
-    // 0 means root/no parent
     uint parent_index;
 };
 
@@ -47,8 +46,7 @@ void main() {
 
     uint current_armature_index = armature_starting_index;
     mat4 current_transform = mat4(1.0);
-    // Walk up the parent chain, sampling animation channels per-node to
-    // compute the local transform for each node and accumulate global transform.
+
     while (true) {
         mat4 local = armature_data.armature[current_armature_index].transform;
 
