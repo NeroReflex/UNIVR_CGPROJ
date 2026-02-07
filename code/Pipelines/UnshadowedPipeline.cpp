@@ -94,6 +94,7 @@ void UnshadowedPipeline::render(const Scene *const scene) noexcept {
                     if (uniDispTex >= 0) CHECK_GL_ERROR(glUniform1i(uniDispTex, 2));
 
                     const auto diffuse_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseColor");
+                    const auto specular_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_SpecularColor");
                     const auto material_flags_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_material_flags");
                     const auto shininess_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_Shininess");
 
@@ -119,7 +120,13 @@ void UnshadowedPipeline::render(const Scene *const scene) noexcept {
                         m_unshadowed_program->uniformMat4x4("u_ModelMatrix", model_matrix);
                         m_unshadowed_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
 
-                        mesh.draw(diffuse_color_location, material_flags_location, shininess_location, skeleton_binding);
+                        mesh.draw(
+                            diffuse_color_location,
+                            specular_color_location,
+                            material_flags_location,
+                            shininess_location,
+                            skeleton_binding
+                        );
                     });
                 });
             });

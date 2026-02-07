@@ -508,16 +508,27 @@ std::optional<SceneElementReference> Scene::load_asset(
         }
 
         float shininess = 0.0f;
+        glm::vec3 diffuse_color(0.0f);
+        glm::vec3 specular_color(0.0f);
         const aiMaterial *const assimp_mat = scene->mMaterials[mesh->mMaterialIndex];
         if (assimp_mat) {
             ai_real s = 0.0;
             if (assimp_mat->Get(AI_MATKEY_SHININESS, s) == AI_SUCCESS) {
-                //std::cout << "Mesh " << meshIndex << " has shininess: " << s << std::endl;
                 shininess = static_cast<float>(s);
+            }
+
+            aiColor3D dcol(0.0f, 0.0f, 0.0f);
+            if (assimp_mat->Get(AI_MATKEY_COLOR_DIFFUSE, dcol) == AI_SUCCESS) {
+                diffuse_color = glm::vec3(static_cast<float>(dcol.r), static_cast<float>(dcol.g), static_cast<float>(dcol.b));
+            }
+
+            aiColor3D scol(0.0f, 0.0f, 0.0f);
+            if (assimp_mat->Get(AI_MATKEY_COLOR_SPECULAR, scol) == AI_SUCCESS) {
+                specular_color = glm::vec3(static_cast<float>(scol.r), static_cast<float>(scol.g), static_cast<float>(scol.b));
             }
         }
 
-        auto material = std::make_shared<Material>(glm::vec3(0.0), shininess);
+        auto material = std::make_shared<Material>(diffuse_color, specular_color, shininess);
         material->setDiffuseTexture(
             assimp_load_texture(
                 asset_path.parent_path(),

@@ -15,6 +15,7 @@ public:
 
     Material(
         const glm::vec3& diffuse_color,
+        const glm::vec3& specular_color,
         float shininess
     ) noexcept;
 
@@ -44,12 +45,15 @@ public:
 
     void bindRenderState(
         GLuint diffuse_color_location,
+        GLuint specular_color_location,
         GLuint material_uniform_location,
         GLint shininess_location
     ) const noexcept;
 
 private:
     glm::vec3 m_diffuse_color;
+
+    glm::vec3 m_specular_color;
 
     float m_shininess;
 

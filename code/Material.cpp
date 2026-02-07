@@ -4,9 +4,11 @@
 
 Material::Material(
     const glm::vec3& diffuse_color,
+    const glm::vec3& specular_color,
     float shininess
 ) noexcept :
     m_diffuse_color(diffuse_color),
+    m_specular_color(specular_color),
     m_shininess(shininess),
     m_diffuse_texture(nullptr),
     m_specular_texture(nullptr),
@@ -17,6 +19,7 @@ Material::Material(
 
 void Material::bindRenderState(
     GLuint diffuse_color_location,
+    GLuint specular_color_location,
     GLuint material_uniform_location,
     GLint shininess_location
 ) const noexcept {
@@ -61,6 +64,10 @@ void Material::bindRenderState(
 
     if (diffuse_color_location != 0) {
         glUniform3fv(diffuse_color_location, 1, glm::value_ptr(m_diffuse_color));
+    }
+
+    if (specular_color_location != 0) {
+        glUniform3fv(specular_color_location, 1, glm::value_ptr(m_specular_color));
     }
 
     if (material_uniform_location != 0) {

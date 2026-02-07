@@ -18,6 +18,7 @@ layout(location = 1) uniform mat4 u_ModelMatrix;
 layout(location = 2) uniform mat3 u_NormalMatrix;
 
 layout(location = 4) uniform vec3 u_DiffuseColor;
+layout(location = 7) uniform vec3 u_SpecularColor;
 layout(location = 5) uniform uint u_material_flags;
 layout(location = 6) uniform float u_Shininess;
 
@@ -43,7 +44,7 @@ void main() {
     if ((u_material_flags & 0x2u) != 0u) {
         gSpecular = vec4(texture(u_SpecularTex, in_vTextureUV).xyz, 0.0);
     } else {
-        gSpecular = vec4(0.0);
+        gSpecular = vec4(u_SpecularColor, 0.0);
     }
 
     vec4 normal_tspace = vec4(0.0, 0.0, 1.0, 0.0);

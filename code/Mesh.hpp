@@ -52,6 +52,7 @@ public:
 
     void draw(
         GLuint diffuse_color_location,
+        GLuint specular_color_location,
         GLuint material_uniform_location,
         GLint shininess_location,
         GLint skeleton_binding = -1

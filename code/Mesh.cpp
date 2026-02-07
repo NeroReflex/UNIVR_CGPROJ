@@ -93,12 +93,13 @@ Mesh::~Mesh() noexcept {
 
 void Mesh::draw(
     GLuint diffuse_color_location,
+    GLuint specular_color_location,
     GLuint material_uniform_location,
     GLint shininess_location,
     GLint skeleton_binding
 ) const noexcept {
     // bind texture to unit 0 if using texture and upload material state
-    getMaterial()->bindRenderState(diffuse_color_location, material_uniform_location, shininess_location);
+    getMaterial()->bindRenderState(diffuse_color_location, specular_color_location, material_uniform_location, shininess_location);
 
     // Bind the VAO which already has the vertex attribute state
     // If this mesh has a skeleton, bind its SSBO to binding point 0 so shaders can access it.

@@ -159,11 +159,6 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                         return;
                     }
 
-                    /*
-                    GLint viewport[4] = {0,0,0,0};
-                    CHECK_GL_ERROR(glGetIntegerv(GL_VIEWPORT, viewport));
-                    */
-
                     // Draw each mesh using its own model matrix
                     m_unshadowed_program->bind();
                     m_unshadowed_program->uniformMat4x4("u_CustomGLPositionMatrix", glm::mat4(1.0f));
@@ -176,6 +171,7 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                     if (uniDispTex >= 0) CHECK_GL_ERROR(glUniform1i(uniDispTex, 2));
 
                     const auto diffuse_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseColor");
+                    const auto specular_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_SpecularColor");
                     const auto material_flags_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_material_flags");
                     const auto shininess_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_Shininess");
 
@@ -200,7 +196,13 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                         m_unshadowed_program->uniformMat4x4("u_ModelMatrix", model_matrix);
                         m_unshadowed_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
 
-                        mesh.draw(diffuse_color_location, material_flags_location, shininess_location, skeleton_binding);
+                        mesh.draw(
+                            diffuse_color_location,
+                            specular_color_location,
+                            material_flags_location,
+                            shininess_location,
+                            skeleton_binding
+                        );
                     });
                 });
             });
@@ -319,7 +321,13 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                         const glm::mat4 model_matrix = mesh.getModelMatrix();
                         const glm::mat4 ls = light_space_matrix * model_matrix;
                         m_depth_only_program->uniformMat4x4("u_CustomGLPositionMatrix", ls);
-                        mesh.draw(0, 0, 0, depth_skeleton_binding);
+                        mesh.draw(
+                            0,
+                            0,
+                            0,
+                            0,
+                            depth_skeleton_binding
+                        );
                     });
                 });
             });
@@ -398,7 +406,13 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                         const glm::mat4 model_matrix = mesh.getModelMatrix();
                         const glm::mat4 ls = light_space_matrix * model_matrix;
                         m_depth_only_program->uniformMat4x4("u_CustomGLPositionMatrix", ls);
-                        mesh.draw(0, 0, 0, depth_skeleton_binding);
+                        mesh.draw(
+                            0,
+                            0,
+                            0,
+                            0,
+                            depth_skeleton_binding
+                        );
                     });
                 });
             });
