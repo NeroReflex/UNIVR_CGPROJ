@@ -116,7 +116,7 @@ ShadowedPipeline::ShadowedPipeline(
     m_shadowbuffer(std::move(shadowbuffer)),
     m_ssao_sample_buffer(std::move(ssao_sample_buffer)),
     m_ssao_noise_texture(std::move(ssao_noise_texture)),
-    m_unshadowed_program(unshadowed_program),
+    m_mesh_program(unshadowed_program),
     m_ssao_program(ssao_program),
     m_ssao_blur_program(ssao_blur_program),
     m_ambient_lighting_program(ambient_lighting_program),
@@ -160,20 +160,16 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                     }
 
                     // Draw each mesh using its own model matrix
-                    m_unshadowed_program->bind();
-                    m_unshadowed_program->uniformMat4x4("u_CustomGLPositionMatrix", glm::mat4(1.0f));
+                    m_mesh_program->bind();
+                    m_mesh_program->uniformMat4x4("u_CustomGLPositionMatrix", glm::mat4(1.0f));
+                    m_mesh_program->uniformInt("u_DiffuseTex", 0);
+                    m_mesh_program->uniformInt("u_SpecularTex", 1);
+                    m_mesh_program->uniformInt("u_DisplacementTex", 2);
 
-                    const GLint uniTex = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseTex");
-                    if (uniTex >= 0) CHECK_GL_ERROR(glUniform1i(uniTex, 0));
-                    const GLint uniSpecTex = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_SpecularTex");
-                    if (uniSpecTex >= 0) CHECK_GL_ERROR(glUniform1i(uniSpecTex, 1));
-                    const GLint uniDispTex = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DisplacementTex");
-                    if (uniDispTex >= 0) CHECK_GL_ERROR(glUniform1i(uniDispTex, 2));
-
-                    const auto diffuse_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseColor");
-                    const auto specular_color_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_SpecularColor");
-                    const auto material_flags_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_material_flags");
-                    const auto shininess_location = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_Shininess");
+                    const auto diffuse_color_location = glGetUniformLocation(m_mesh_program->getProgram(), "u_DiffuseColor");
+                    const auto specular_color_location = glGetUniformLocation(m_mesh_program->getProgram(), "u_SpecularColor");
+                    const auto material_flags_location = glGetUniformLocation(m_mesh_program->getProgram(), "u_material_flags");
+                    const auto shininess_location = glGetUniformLocation(m_mesh_program->getProgram(), "u_Shininess");
 
                     // Find SSBO binding for `SkeletonBuffer` (if present) in the currently bound program
                     auto find_ssbo_binding = [](GLuint program, const char* block_name) -> GLint {
@@ -185,16 +181,16 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                         return binding;
                     };
 
-                    const GLint skeleton_binding = find_ssbo_binding(m_unshadowed_program->getProgram(), "SkeletonBuffer");
+                    const GLint skeleton_binding = find_ssbo_binding(m_mesh_program->getProgram(), "SkeletonBuffer");
 
                     scene->foreachMesh([&](const Mesh& mesh) {
                         const glm::mat4 model_matrix = mesh.getModelMatrix();
                         const glm::mat4 mvp = proj * view * model_matrix;
                         const glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
 
-                        m_unshadowed_program->uniformMat4x4("u_MVP", mvp);
-                        m_unshadowed_program->uniformMat4x4("u_ModelMatrix", model_matrix);
-                        m_unshadowed_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
+                        m_mesh_program->uniformMat4x4("u_MVP", mvp);
+                        m_mesh_program->uniformMat4x4("u_ModelMatrix", model_matrix);
+                        m_mesh_program->uniformMat3x3("u_NormalMatrix", normal_matrix);
 
                         mesh.draw(
                             diffuse_color_location,

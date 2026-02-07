@@ -148,7 +148,11 @@ void Program::framebufferAttachment(const std::string& name, GLuint texture_unit
     }
 }
 
-void Program::framebufferDepthAttachment(const std::string& name, GLuint texture_unit, const Framebuffer& framebuffer) noexcept {
+void Program::framebufferDepthAttachment(
+    const std::string& name,
+    GLuint texture_unit,
+    const Framebuffer& framebuffer
+) noexcept {
     if (texture_unit >= GL_TEXTURE0) {
         texture_unit -= GL_TEXTURE0;
     }
@@ -158,7 +162,12 @@ void Program::framebufferDepthAttachment(const std::string& name, GLuint texture
     return framebufferAttachment(name, texture_unit, attachment);
 }
 
-void Program::framebufferColorAttachment(const std::string& name, GLuint texture_unit, const Framebuffer& framebuffer, size_t index) noexcept {
+void Program::framebufferColorAttachment(
+    const std::string& name,
+    GLuint texture_unit,
+    const Framebuffer& framebuffer,
+    size_t index
+) noexcept {
     if (texture_unit >= GL_TEXTURE0) {
         texture_unit -= GL_TEXTURE0;
     }
@@ -202,6 +211,12 @@ void Program::uniformUint(const std::string& name, const glm::uint32& val) noexc
     GLint loc = getUniformLocation(name);
     if (loc >= 0)
         CHECK_GL_ERROR(glUniform1ui(loc, val));
+}
+
+void Program::uniformInt(const std::string& name, const glm::int32& val) noexcept {
+    GLint loc = getUniformLocation(name);
+    if (loc >= 0)
+        CHECK_GL_ERROR(glUniform1i(loc, val));
 }
 
 void Program::bind() const noexcept {

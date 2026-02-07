@@ -41,34 +41,84 @@ public:
         return m_program;
     }
 
-    void uniformMat4x4(const std::string& name, const glm::mat4& val) noexcept;
+    void uniformMat4x4(
+        const std::string& name,
+        const glm::mat4& val
+    ) noexcept;
 
-    void uniformMat3x3(const std::string& name, const glm::mat3& val) noexcept;
+    void uniformMat3x3(
+        const std::string& name,
+        const glm::mat3& val
+    ) noexcept;
 
-    void uniformVec3(const std::string& name, const glm::vec3& val) noexcept;
+    void uniformVec3(
+        const std::string& name,
+        const glm::vec3& val
+    ) noexcept;
 
-    void uniformVec4(const std::string& name, const glm::vec4& val) noexcept;
+    void uniformVec4(
+        const std::string& name,
+        const glm::vec4& val
+    ) noexcept;
 
-    void uniformFloat(const std::string& name, const glm::float32& val) noexcept;
+    void uniformFloat(
+        const std::string& name,
+        const glm::float32& val
+    ) noexcept;
 
-    void uniformUint(const std::string& name, const glm::uint32& val) noexcept;
+    void uniformUint(
+        const std::string& name,
+        const glm::uint32& val
+    ) noexcept;
 
-    void texture(const std::string& name, GLuint texture_unit, const Texture& texture) noexcept;
+    void uniformInt(
+        const std::string& name,
+        const glm::int32& val
+    ) noexcept;
 
-    void framebufferColorAttachment(const std::string& name, GLuint texture_unit, const Framebuffer& framebuffer, size_t index) noexcept;
+    void texture(
+        const std::string& name,
+        GLuint texture_unit,
+        const Texture& texture
+    ) noexcept;
 
-    void framebufferDepthAttachment(const std::string& name, GLuint texture_unit, const Framebuffer& framebuffer) noexcept;
+    void framebufferColorAttachment(
+        const std::string& name,
+        GLuint texture_unit,
+        const Framebuffer& framebuffer,
+        size_t index
+    ) noexcept;
+
+    void framebufferDepthAttachment(
+        const std::string& name,
+        GLuint texture_unit,
+        const Framebuffer& framebuffer
+    ) noexcept;
 
     void bind() const noexcept;
 
-    void uniformStorageBuffer(const std::string& name, const Buffer& buf) noexcept;
+    void uniformStorageBuffer(
+        const std::string& name,
+        const Buffer& buf
+    ) noexcept;
 
-    void uniformStorageBufferBinding(const std::string& name, GLuint bufferId) noexcept;
+    void uniformStorageBufferBinding(
+        const std::string& name,
+        GLuint bufferId
+    ) noexcept;
 
-    void dispatchCompute(GLuint num_groups_x, GLuint num_groups_y, GLuint num_groups_z) noexcept;
+    void dispatchCompute(
+        GLuint num_groups_x,
+        GLuint num_groups_y,
+        GLuint num_groups_z
+    ) noexcept;
 
 private:
-    void framebufferAttachment(const std::string& name, GLuint texture_unit, GLuint attachment) noexcept;
+    void framebufferAttachment(
+        const std::string& name,
+        GLuint texture_unit,
+        GLuint attachment
+    ) noexcept;
 
     GLint getUniformLocation(const std::string& name) noexcept;
 

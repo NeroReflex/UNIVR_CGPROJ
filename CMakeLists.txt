@@ -19,7 +19,6 @@ add_library(cg_lib STATIC
     ./code/Pipeline.cpp
     ./code/Framebuffer.cpp
     ./code/RenderQuad.cpp
-    ./code/Pipelines/UnshadowedPipeline.cpp
     ./code/Pipelines/ShadowedPipeline.cpp
     ./code/Camera/Camera.cpp
     ./code/Camera/MovableCamera.cpp

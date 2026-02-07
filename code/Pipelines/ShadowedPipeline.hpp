@@ -67,7 +67,7 @@ private:
     std::unique_ptr<Texture> m_ssao_noise_texture;
 
     // G-buffer program to generate basic information
-    std::shared_ptr<Program> m_unshadowed_program;
+    std::shared_ptr<Program> m_mesh_program;
 
     // SSAO program
     std::shared_ptr<Program> m_ssao_program;
