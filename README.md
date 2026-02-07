@@ -42,3 +42,5 @@ Per lanciare la scena di esempio:
 ```
 
 ![Scena di esempio](relazione/directional.png "Scena di esempio")
+
+[![Video dimostrativo](relazione/integrazione/pipeline_final.png)](https://www.youtube.com/watch?v=uV3AvpAVbxg)

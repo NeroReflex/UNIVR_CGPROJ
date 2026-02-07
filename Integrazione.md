@@ -146,6 +146,18 @@ I dati in ingresso alla pipeline sono:
 La matrice MVP è usata per risolvere il problema della visibilità lasciando il rasterization
 a il depth buffer testing all'hardware.
 
+![GBuffer Position](relazione/integrazione/gbuffer_position.png "GBuffer Position")
+
+![GBuffer Normal](relazione/integrazione/gbuffer_normal.png "GBuffer Normal")
+
+![GBuffer Tangent](relazione/integrazione/gbuffer_tangent.png "GBuffer Tangent")
+
+![GBuffer Normal Map](relazione/integrazione/gbuffer_normal_map.png "GBuffer Normal map")
+
+![GBuffer Diffuse](relazione/integrazione/gbuffer_diffuse.png "GBuffer Diffuse")
+
+![GBuffer Specular](relazione/integrazione/gbuffer_specular.png "GBuffer Specular")
+
 #### 2.1 SSAO pass
 
 Questo passo di rendering costruice il buffer SSAO: una texture che ricopre lo screen quad in cui
@@ -164,10 +176,13 @@ all'emisfero di interesse.
 Gli offset sono generati deterministicamente da un seed casuale salvato in un piccolo buffer di dimensione 8x8 per poi essere applicato a tile:
 questo introduce un rumore ad alta frequenza (che può essere descritto come un pattern regolare) nel buffer di output dell'algoritmo.
 
+![SSAO Unfiltered](relazione/integrazione/pipeline_ssao_unblurred.png "SSAO Unfiltered")
+
 #### 2.2 SSAO blur pass
 
-Questo passo esegue la media locale di valori adiacenti nell'SSAO buffer generato al punto 2.1 al fine di rimuovere il rumore
-ad alta frequenza introdotto dalla ripetizione regolare dei seed; il risultato viene salvato in un framebuffer riservato.
+Questo passo esegue la media locale di valori adiacenti nell'SSAO buffer generato al punto 2.1 al fine di rimuovere il rumore ad alta frequenza introdotto dalla ripetizione regolare dei seed; il risultato viene salvato in un framebuffer riservato.
+
+![SSAO Blurred](relazione/integrazione/pipeline_ssao_blurred.png "SSAO Blurred")
 
 #### 3.1 Ambient light pass
 
@@ -231,8 +246,9 @@ L'output è scritto in un framebuffer delle dimensione dello schermo.
 
 #### 6.1 final pass
 
-Il final pass si occupa di copiare il risultato del tonemapping sul framebuffer di default: quello che
-verrà usato dal compositor (nel caso di Linux) per mostrare a schermo il risultato finale.
+Il final pass si occupa di copiare il risultato del tonemapping sul framebuffer di default: quello che verrà usato dal compositor (nel caso di Linux) per mostrare a schermo il risultato finale.
+
+![Final Result](relazione/integrazione/pipeline_final.png "Final Result")
 
 ## Animazioni
 
@@ -309,3 +325,9 @@ Ogni bone ha un ArmatureGPUElement associato, che a sua volta è parte di una ge
 La nuova bone matrix si ottiene moltiplicando l'offset matrix per la global transform.
 
 Il compute shader eseguito per calcolare la posizione attuale funziona in modo analogo, ma invece di usare il local transform dei nodi dell'armatura usa, per i nodi da animare, il local transform dettato dall'istante dell'animazione per cui si stanno calcolando le bone matrix (o il local transform originale se l'animazione non include quel nodo).
+
+### Esempio di dati inviati al compute shader
+
+![Animazione Original Bones Buffer](relazione/integrazione/original_bones.png "Animazione Original Bones Buffer")
+
+![Animazione Armature Buffer](relazione/integrazione/armature_buffer.png "Animazione Armature Buffer")
