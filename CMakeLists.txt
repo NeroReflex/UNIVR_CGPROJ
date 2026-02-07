@@ -60,11 +60,10 @@ if(GLSLANG_VALIDATOR)
         animate_bind_pose.comp
 
         animate.comp
-        unshadowed.vert
-        unshadowed.geom
-        unshadowed.frag
+        mesh.vert
+        mesh.geom
+        mesh.frag
         quad.vert
-        depth_only.vert
         depth_only.frag
         ssao.frag
         ssao_blur.frag

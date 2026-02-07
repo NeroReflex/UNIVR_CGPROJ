@@ -20,16 +20,16 @@ static GLint find_ssbo_binding(GLuint program, const char* block_name) {
     return binding;
 }
 
-static std::string vertex_shader_source_str(reinterpret_cast<const char*>(unshadowed_vert_glsl), unshadowed_vert_glsl_len);
+static std::string vertex_shader_source_str(reinterpret_cast<const char*>(mesh_vert_glsl), mesh_vert_glsl_len);
 static const GLchar *const vertex_shader_source = vertex_shader_source_str.c_str();
 
-static std::string geometry_shader_source_str(reinterpret_cast<const char*>(unshadowed_geom_glsl), unshadowed_geom_glsl_len);
+static std::string geometry_shader_source_str(reinterpret_cast<const char*>(mesh_geom_glsl), mesh_geom_glsl_len);
 static const GLchar *const geometry_shader_source = geometry_shader_source_str.c_str();
 
-static std::string fragment_shader_source_str(reinterpret_cast<const char*>(unshadowed_frag_glsl), unshadowed_frag_glsl_len);
+static std::string fragment_shader_source_str(reinterpret_cast<const char*>(mesh_frag_glsl), mesh_frag_glsl_len);
 static const GLchar *const fragment_shader_source = fragment_shader_source_str.c_str();
 
-static std::string depth_only_vertex_shader_source_str(reinterpret_cast<const char*>(depth_only_vert_glsl), depth_only_vert_glsl_len);
+static std::string depth_only_vertex_shader_source_str(reinterpret_cast<const char*>(mesh_vert_glsl), mesh_vert_glsl_len);
 static const GLchar *const depth_only_vertex_shader_source = depth_only_vertex_shader_source_str.c_str();
 
 static std::string depth_only_fragment_shader_source_str(reinterpret_cast<const char*>(depth_only_frag_glsl), depth_only_frag_glsl_len);
@@ -166,6 +166,7 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
 
                     // Draw each mesh using its own model matrix
                     m_unshadowed_program->bind();
+                    m_unshadowed_program->uniformMat4x4("u_CustomGLPositionMatrix", glm::mat4(1.0f));
 
                     const GLint uniTex = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseTex");
                     if (uniTex >= 0) CHECK_GL_ERROR(glUniform1i(uniTex, 0));
@@ -308,8 +309,8 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
         withFramebuffer(m_shadowbuffer.get(), [&]() {
             withFaceCulling([&]() {
                 withEnabledDepthTest([&]() {
-                    // bind shadow map generation program
                     m_depth_only_program->bind();
+                    m_depth_only_program->uniformMat4x4("u_MVP", glm::mat4(1.0f));
 
                     // Depth-only pass program bound; try to find skeleton binding for depth program (likely -1)
                     const GLint depth_skeleton_binding = find_ssbo_binding(m_depth_only_program->getProgram(), "SkeletonBuffer");
@@ -317,7 +318,7 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                     scene->foreachMesh([&](const Mesh& mesh) {
                         const glm::mat4 model_matrix = mesh.getModelMatrix();
                         const glm::mat4 ls = light_space_matrix * model_matrix;
-                        m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", ls);
+                        m_depth_only_program->uniformMat4x4("u_CustomGLPositionMatrix", ls);
                         mesh.draw(0, 0, 0, depth_skeleton_binding);
                     });
                 });
@@ -387,8 +388,8 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
         withFramebuffer(m_shadowbuffer.get(), [&]() {
             withFaceCulling([&]() {
                 withEnabledDepthTest([&]() {
-                    // bind shadow map generation program
                     m_depth_only_program->bind();
+                    m_depth_only_program->uniformMat4x4("u_MVP", glm::mat4(1.0f));
 
                     // Depth-only pass for cone light
                     const GLint depth_skeleton_binding = find_ssbo_binding(m_depth_only_program->getProgram(), "SkeletonBuffer");
@@ -396,7 +397,7 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                     scene->foreachMesh([&](const Mesh& mesh) {
                         const glm::mat4 model_matrix = mesh.getModelMatrix();
                         const glm::mat4 ls = light_space_matrix * model_matrix;
-                        m_depth_only_program->uniformMat4x4("u_LightSpaceMatrix", ls);
+                        m_depth_only_program->uniformMat4x4("u_CustomGLPositionMatrix", ls);
                         mesh.draw(0, 0, 0, depth_skeleton_binding);
                     });
                 });

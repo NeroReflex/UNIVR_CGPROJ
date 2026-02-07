@@ -4,8 +4,6 @@ precision highp float;
 
 #define BONE_IS_ROOT 0xFFFFFFFFu
 
-#define BONE_IS_ROOT 0xFFFFFFFFu
-
 #define MAX_BONES 128u
 
 layout(location = 0) in vec3 in_vPosition_modelspace;
@@ -28,9 +26,18 @@ layout(std430, binding = 0) buffer SkeletonBuffer {
     mat4 offset_matrix[];
 } skeleton;
 
-layout(location = 0) uniform mat4 u_LightSpaceMatrix;
+layout(location = 0) uniform mat4 u_MVP;
+layout(location = 1) uniform mat4 u_ModelMatrix;
+layout(location = 2) uniform mat3 u_NormalMatrix;
+layout(location = 3) uniform mat4 u_CustomGLPositionMatrix;
+
+layout(location = 0) out vec2 out_vTextureUV;
+layout(location = 1) out vec3 out_vNormal_worldspace;
+layout(location = 2) out vec3 out_vPosition_modelspace;
+layout(location = 3) out vec3 out_vPosition_worldspace;
 
 void main() {
+    // Skinning: blend position and normal by up to 4 bones.
     vec4 skinnedPos = vec4(0.0);
     vec3 skinnedNormal = vec3(0.0);
 
@@ -55,5 +62,9 @@ void main() {
         skinnedNormal = in_vNormal_modelspace;
     }
 
-    gl_Position = u_LightSpaceMatrix * skinnedPos;
+    gl_Position = u_MVP * u_CustomGLPositionMatrix * skinnedPos;
+    out_vTextureUV = in_vTextureUV;
+    out_vNormal_worldspace = u_NormalMatrix * skinnedNormal;
+    out_vPosition_modelspace = skinnedPos.xyz;
+    out_vPosition_worldspace = (u_ModelMatrix * skinnedPos).xyz;
 }

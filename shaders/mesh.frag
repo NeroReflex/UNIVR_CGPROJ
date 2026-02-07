@@ -17,9 +17,9 @@ layout(location = 0) uniform mat4 u_MVP;
 layout(location = 1) uniform mat4 u_ModelMatrix;
 layout(location = 2) uniform mat3 u_NormalMatrix;
 
-layout(location = 3) uniform vec3 u_DiffuseColor;
-layout(location = 4) uniform uint u_material_flags;
-layout(location = 5) uniform float u_Shininess;
+layout(location = 4) uniform vec3 u_DiffuseColor;
+layout(location = 5) uniform uint u_material_flags;
+layout(location = 6) uniform float u_Shininess;
 
 layout(location = 0) out vec4 gDiffuse;
 layout(location = 1) out vec4 gSpecular;

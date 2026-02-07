@@ -10,10 +10,10 @@
 
 #include "embedded_shaders_symbols.h"
 
-static std::string vertex_shader_source_str(reinterpret_cast<const char*>(unshadowed_vert_glsl), unshadowed_vert_glsl_len);
+static std::string vertex_shader_source_str(reinterpret_cast<const char*>(mesh_vert_glsl), mesh_vert_glsl_len);
 static const GLchar* vertex_shader_source = vertex_shader_source_str.c_str();
 
-static std::string fragment_shader_source_str(reinterpret_cast<const char*>(unshadowed_frag_glsl), unshadowed_frag_glsl_len);
+static std::string fragment_shader_source_str(reinterpret_cast<const char*>(mesh_frag_glsl), mesh_frag_glsl_len);
 static const GLchar* fragment_shader_source = fragment_shader_source_str.c_str();
 
 // Fullscreen quad vertex shader
@@ -83,6 +83,7 @@ void UnshadowedPipeline::render(const Scene *const scene) noexcept {
                     const glm::mat4 view = camera->getViewMatrix();
 
                     m_unshadowed_program->bind();
+                    m_unshadowed_program->uniformMat4x4("u_CustomGLPositionMatrix", glm::mat4(1.0f));
 
                     // Ensure samplers are bound to the correct texture units
                     const GLint uniTex = glGetUniformLocation(m_unshadowed_program->getProgram(), "u_DiffuseTex");
