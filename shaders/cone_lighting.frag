@@ -8,6 +8,7 @@ layout(location = 0) in vec2 v_TexCoord;
 
 uniform sampler2D u_GDiffuse;
 uniform sampler2D u_GSpecular;
+uniform sampler2D u_GShininess;
 uniform sampler2D u_GNormalTangentSpace;
 uniform sampler2D u_GPosition;
 uniform sampler2D u_GNormal;
@@ -27,7 +28,7 @@ layout(location = 5) uniform float u_LightOuterCutOff;
 layout(location = 6) uniform float u_LightConstant;
 layout(location = 7) uniform float u_LightLinear;
 layout(location = 8) uniform float u_LightQuadratic;
-
+layout(location = 9) uniform vec3 u_CameraPosition;
 
 layout(location = 0) out vec3 o_LightpassOutput;
 
@@ -73,7 +74,7 @@ void main() {
 
     float currentDepth = lightSpacePos.z * 0.5 + 0.5;
 
-    // vector from light to point in tangent space
+    // vector from point to light in tangent space
     vec3 vDir_tangentspace = normalize(invTBN * normalize(u_LightPosition - vPosition_worldspace.xyz));
     // cone axis in tangent space
     vec3 vLightDir_tangentspace = normalize(invTBN * u_LightDirection);
@@ -94,16 +95,27 @@ void main() {
     float attenuation = 1.0 / (u_LightConstant + u_LightLinear * distance + u_LightQuadratic * (distance * distance));
 
     // use normal in tangent space for lighting coefficient
-    vec3 n_ts = normalize(texture(u_GNormalTangentSpace, v_TexCoord).rgb /* * 2.0 - 1.0*/ );
+    vec3 normal_tangentspace = normalize(texture(u_GNormalTangentSpace, v_TexCoord).rgb /* * 2.0 - 1.0*/ );
 
-    float NdotL = max(dot(n_ts, vDir_tangentspace), 0.0);
+    float NdotL = max(dot(normal_tangentspace, vDir_tangentspace), 0.0);
 
     // Il modello di default ha distanze troppo elevate
     if (attenuation < 0.001) {
         attenuation = 1.0;
     }
 
-    result += u_LightColor * vDiffuse /* *  NdotL */ *  attenuation * coneIntensity * shadow;
+    vec3 diffuseContrib = u_LightColor * vDiffuse * attenuation * coneIntensity * NdotL;
+
+    // Specular (Blinn-Phong) using G-buffer specular color and shininess
+    vec3 specColor = texture(u_GSpecular, v_TexCoord).rgb;
+    float shininess = texture(u_GShininess, v_TexCoord).r;
+    vec3 viewDir_tangentspace = normalize(invTBN * normalize(u_CameraPosition - vPosition_worldspace.xyz));
+    vec3 L = normalize(vDir_tangentspace); // toward light in tangent space
+    vec3 H = normalize(L + viewDir_tangentspace);
+    float specFactor = pow(max(dot(normal_tangentspace, H), 0.0), max(shininess, 1.0));
+    vec3 specularContrib = u_LightColor * specColor * specFactor * attenuation * coneIntensity;
+
+    result += shadow * (diffuseContrib + specularContrib);
 
     o_LightpassOutput = result;
 }

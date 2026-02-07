@@ -343,6 +343,7 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                 m_directional_lighting_program->framebufferColorAttachment("u_GPosition", GL_TEXTURE3, *m_gbuffer, 3);
                 m_directional_lighting_program->framebufferColorAttachment("u_GNormal", GL_TEXTURE4, *m_gbuffer, 4);
                 m_directional_lighting_program->framebufferColorAttachment("u_GTangent", GL_TEXTURE5, *m_gbuffer, 5);
+                m_directional_lighting_program->framebufferColorAttachment("u_GShininess", GL_TEXTURE8, *m_gbuffer, 6);
                 m_directional_lighting_program->framebufferColorAttachment("u_LightpassInput", GL_TEXTURE6, *m_lightbuffer[last_used_lightbuffer_index], 0);
                 m_directional_lighting_program->framebufferDepthAttachment("u_LDepthTexture", GL_TEXTURE7, *m_shadowbuffer);
 
@@ -351,6 +352,7 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                     m_directional_lighting_program->uniformVec3("u_LightDir", dir_light.getDirection());
                     m_directional_lighting_program->uniformVec3("u_LightColor", dir_light.getColorWithIntensity());
                     m_directional_lighting_program->uniformMat4x4("u_LightSpaceMatrix", light_space_matrix);
+                    m_directional_lighting_program->uniformVec3("u_CameraPosition", camera_pos);
                 }
 
                 // draw fullscreen quad
@@ -425,6 +427,7 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                 m_cone_lighting_program->framebufferColorAttachment("u_GPosition", GL_TEXTURE3, *m_gbuffer, 3);
                 m_cone_lighting_program->framebufferColorAttachment("u_GNormal", GL_TEXTURE4, *m_gbuffer, 4);
                 m_cone_lighting_program->framebufferColorAttachment("u_GTangent", GL_TEXTURE5, *m_gbuffer, 5);
+                m_cone_lighting_program->framebufferColorAttachment("u_GShininess", GL_TEXTURE8, *m_gbuffer, 6);
                 m_cone_lighting_program->framebufferColorAttachment("u_LightpassInput", GL_TEXTURE6, *m_lightbuffer[last_used_lightbuffer_index], 0);
                 m_cone_lighting_program->framebufferDepthAttachment("u_LDepthTexture", GL_TEXTURE7, *m_shadowbuffer);
 
@@ -434,6 +437,7 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                     m_cone_lighting_program->uniformVec3("u_LightPosition", cone.getPosition());
                     m_cone_lighting_program->uniformVec3("u_LightDirection", cone.getDirection());
                     m_cone_lighting_program->uniformMat4x4("u_LightSpaceMatrix", light_space_matrix);
+                    m_cone_lighting_program->uniformVec3("u_CameraPosition", camera->getCameraPosition());
 
                     // compute inner/outer cone cutoffs from the light angle and cone properties
                     const float outerHalf = static_cast<float>(light_angle * 0.5f);

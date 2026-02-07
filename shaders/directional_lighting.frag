@@ -10,6 +10,7 @@ layout(location = 0) in vec2 v_TexCoord;
 
 uniform sampler2D u_GDiffuse;
 uniform sampler2D u_GSpecular;
+uniform sampler2D u_GShininess;
 uniform sampler2D u_GNormalTangentSpace;
 uniform sampler2D u_GPosition;
 uniform sampler2D u_GNormal;
@@ -23,6 +24,7 @@ layout(location = 0) uniform mat4 u_LightSpaceMatrix;
 
 layout(location = 1) uniform vec3 u_LightDir;
 layout(location = 2) uniform vec3 u_LightColor;
+layout(location = 3) uniform vec3 u_CameraPosition;
 
 layout(location = 0) out vec3 o_LightpassOutput;
 
@@ -66,14 +68,11 @@ void main() {
         return;
     }
 
-    //vec2 texelSize = 1.0 / vec2(float(shadowTextureDimensions.x), float(shadowTextureDimensions.y));
     vec2 texelPos = shadowTexCoord * vec2(float(shadowTextureDimensions.x), float(shadowTextureDimensions.y));
 
     // accumulate the contribution of the current directional light
     float NdotL_neg = dot(normal, -light_dir);
     float NdotL = max(NdotL_neg, 0.0);
-
-    //float closestDepth = texture(u_LDepthTexture, shadowTexCoord).r;
 
     float closestDepth = texelFetch(u_LDepthTexture, ivec2(texelPos), 0).r;
 
@@ -91,7 +90,18 @@ void main() {
     float shadow = (currentDepth - bias) > closestDepth ? 0.0 : 1.0;
 #endif
 
-    result += u_LightColor * vDiffuse * NdotL * shadow;
+    vec3 diffuseContrib = u_LightColor * vDiffuse * NdotL;
+
+    // Specular (Blinn-Phong) using G-buffer specular color and shininess
+    vec3 specColor = texture(u_GSpecular, v_TexCoord).rgb;
+    float shininess = texture(u_GShininess, v_TexCoord).r;
+    vec3 viewDir_tangentspace = normalize(invTBN * normalize(u_CameraPosition - vPosition_worldspace.xyz));
+    vec3 L = normalize(-light_dir); // toward light in tangent space
+    vec3 H = normalize(L + viewDir_tangentspace);
+    float specFactor = pow(max(dot(normal, H), 0.0), max(shininess, 1.0));
+    vec3 specularContrib = u_LightColor * specColor * specFactor * NdotL;
+
+    result += shadow * (diffuseContrib + specularContrib);
 
     o_LightpassOutput = result;
 }
