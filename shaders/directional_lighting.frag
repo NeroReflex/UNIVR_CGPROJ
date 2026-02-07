@@ -79,7 +79,7 @@ void main() {
     float currentDepth = lightSpacePos.z * 0.5 + 0.5;
 
 #if SMOOTH_BIAS
-    float bias = max(0.004 * (1.0 - NdotL_neg), 0.00004);
+    float bias = max(0.005 * (1.0 - NdotL_neg), 0.0005);
 #else
     const float bias = 0.004;
 #endif
