@@ -1,0 +1,63 @@
+name: Build and attach PDFs
+
+on:
+  push: {}
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-pdfs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image (md2pdf)
+        run: docker build -t md2pdf .
+
+      - name: Create container and extract PDFs
+        run: |
+          set -e
+          container=$(docker create md2pdf)
+          docker cp "$container":/workspace/SHADOW_MAPPING.pdf ./SHADOW_MAPPING.pdf || echo "SHADOW_MAPPING.pdf not produced"
+          docker cp "$container":/workspace/Integrazione.pdf ./Integrazione.pdf || echo "Integrazione.pdf not produced"
+          docker rm "$container"
+
+      - name: Prepare artifacts
+        id: prepare
+        run: |
+          mkdir -p pdfs-out
+          if [ -f SHADOW_MAPPING.pdf ]; then cp SHADOW_MAPPING.pdf pdfs-out/; fi
+          if [ -f Integrazione.pdf ]; then cp Integrazione.pdf pdfs-out/; fi
+          count=$(ls -1 pdfs-out 2>/dev/null | wc -l || true)
+          echo "count=$count" >> $GITHUB_OUTPUT
+          if [ -f SHADOW_MAPPING.pdf ]; then echo "shadow=true" >> $GITHUB_OUTPUT; else echo "shadow=false" >> $GITHUB_OUTPUT; fi
+          if [ -f Integrazione.pdf ]; then echo "integ=true" >> $GITHUB_OUTPUT; else echo "integ=false" >> $GITHUB_OUTPUT; fi
+
+      - name: Upload PDFs as workflow artifact
+        if: ${{ github.event_name == 'push' && steps.prepare.outputs.count != '0' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdfs
+          path: pdfs-out/*
+
+      - name: Upload SHADOW_MAPPING.pdf to release
+        if: ${{ github.event_name == 'release' && steps.prepare.outputs.shadow == 'true' }}
+        uses: softprops/action-upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./SHADOW_MAPPING.pdf
+          asset_name: SHADOW_MAPPING.pdf
+          asset_content_type: application/pdf
+
+      - name: Upload Integrazione.pdf to release
+        if: ${{ github.event_name == 'release' && steps.prepare.outputs.integ == 'true' }}
+        uses: softprops/action-upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./Integrazione.pdf
+          asset_name: Integrazione.pdf
+          asset_content_type: application/pdf
