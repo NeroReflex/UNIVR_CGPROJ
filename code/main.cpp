@@ -197,6 +197,9 @@ int main(int argc, char **argv)
 
     bool running = true;
     uint32_t lastTicks = SDL_GetTicks();
+    // Track Minotaur animation end time to insert a delay between loops (ms)
+    uint32_t minotaur_last_end_ticks = 0;
+    bool minotaur_was_running = false;
     float fps_display = 0.0f;
     float ms_display = 0.0f;
     int fps_frames = 0;
@@ -539,9 +542,20 @@ int main(int argc, char **argv)
         scene->render(pipeline.get());
 
         if (minotaur_ref.has_value() && minotaur_animation_name.has_value()) {
-            if (!scene->getRunningAnimationName(minotaur_ref.value()).has_value()) {
-                if (scene->startAnimation(minotaur_ref.value(), minotaur_animation_name.value())) {
-                    std::cout << "Started 'Jump' animation on Minotaur" << std::endl;
+            const auto running = scene->getRunningAnimationName(minotaur_ref.value());
+            if (running.has_value()) {
+                minotaur_was_running = true;
+            } else {
+                // If the animation just finished, record its end time
+                if (minotaur_was_running) {
+                    minotaur_last_end_ticks = currentTicks;
+                    minotaur_was_running = false;
+                }
+
+                if (minotaur_last_end_ticks == 0 || (currentTicks - minotaur_last_end_ticks) >= 2000u) {
+                    if (scene->startAnimation(minotaur_ref.value(), minotaur_animation_name.value())) {
+                        std::cout << "Started 'Jump' animation on Minotaur" << std::endl;
+                    }
                 }
             }
         }
