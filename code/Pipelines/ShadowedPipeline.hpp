@@ -3,9 +3,13 @@
 #include "../Pipeline.hpp"
 #include "../Buffer.hpp"
 #include "../Framebuffer.hpp"
+#include "../RenderQuad.hpp"
 
 #include <memory>
-#include "../RenderQuad.hpp"
+#include <array>
+#include <vector>
+
+#include <glm/glm.hpp>
 
 class ShadowedPipeline : public Pipeline {
 public:
