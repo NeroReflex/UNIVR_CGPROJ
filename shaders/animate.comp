@@ -7,6 +7,8 @@ layout (local_size_x = 16, local_size_y = 1) in;
 #define NODE_IS_NOT_BONE -1
 
 #define MAX_ANIMATION_KEYS_PER_CHANNEL 64u
+// Must match CPU-side MAX_ANIMATION_CHANNELS
+#define MAX_ANIMATION_CHANNELS 128u
 
 struct SkeletonGPUElement {
     mat4 offset_matrix;
@@ -36,6 +38,7 @@ struct AnimationGPUChannel {
     float rotation_key_value_x[MAX_ANIMATION_KEYS_PER_CHANNEL];
     float rotation_key_value_y[MAX_ANIMATION_KEYS_PER_CHANNEL];
     float rotation_key_value_z[MAX_ANIMATION_KEYS_PER_CHANNEL];
+    float rotation_key_value_w[MAX_ANIMATION_KEYS_PER_CHANNEL];
 
     uint scaling_key_count;
     float scaling_key_times[MAX_ANIMATION_KEYS_PER_CHANNEL];
@@ -61,6 +64,135 @@ layout(std430, binding = 3) buffer AnimationBuffer {
 } animation_data;
 
 layout(location = 0) uniform float u_DeltaTime;
+layout(location = 1) uniform uint u_AnimationChannelCount;
+
+vec4 quat_from_xyz(vec3 v) {
+    float t = 1.0 - dot(v, v);
+    float w = (t > 0.0) ? sqrt(t) : 0.0;
+    return normalize(vec4(v, w));
+}
+
+mat4 mat4_from_trs(vec3 t, vec4 q, vec3 s) {
+    // convert quat q (xyzw) to rotation matrix
+    float x = q.x, y = q.y, z = q.z, w = q.w;
+    float x2 = x + x;
+    float y2 = y + y;
+    float z2 = z + z;
+
+    float xx = x * x2;
+    float xy = x * y2;
+    float xz = x * z2;
+    float yy = y * y2;
+    float yz = y * z2;
+    float zz = z * z2;
+    float wx = w * x2;
+    float wy = w * y2;
+    float wz = w * z2;
+
+    mat4 R = mat4(
+        1.0 - (yy + zz), xy + wz, xz - wy, 0.0,
+        xy - wz, 1.0 - (xx + zz), yz + wx, 0.0,
+        xz + wy, yz - wx, 1.0 - (xx + yy), 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+
+    mat4 S = mat4(
+        s.x, 0.0, 0.0, 0.0,
+        0.0, s.y, 0.0, 0.0,
+        0.0, 0.0, s.z, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+
+    mat4 T = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        t.x, t.y, t.z, 1.0
+    );
+
+    return T * R * S;
+}
+
+float find_key_interval_uint(uint count, float times[MAX_ANIMATION_KEYS_PER_CHANNEL], float t, out uint idx) {
+    if (count == 0u) { idx = 0u; return 0.0; }
+    if (t <= times[0]) { idx = 0u; return 0.0; }
+    uint last = count - 1u;
+    if (t >= times[last]) { idx = last; return 0.0; }
+    // linear search (small arrays)
+    for (uint i = 0u; i < last; ++i) {
+        if (t >= times[i] && t < times[i+1u]) {
+            idx = i;
+            float denom = times[i+1u] - times[i];
+            return (denom > 0.0) ? ((t - times[i]) / denom) : 0.0;
+        }
+    }
+    idx = last;
+    return 0.0;
+}
+
+vec3 sample_position(in AnimationGPUChannel ch, float t) {
+    if (ch.position_key_count == 0u) return vec3(0.0);
+    uint i; float a = find_key_interval_uint(ch.position_key_count, ch.position_key_times, t, i);
+    if (a == 0.0 && i == ch.position_key_count - 1u) {
+        return vec3(ch.position_key_value_x[i], ch.position_key_value_y[i], ch.position_key_value_z[i]);
+    }
+    vec3 v0 = vec3(ch.position_key_value_x[i], ch.position_key_value_y[i], ch.position_key_value_z[i]);
+    vec3 v1 = vec3(ch.position_key_value_x[i+1u], ch.position_key_value_y[i+1u], ch.position_key_value_z[i+1u]);
+    return mix(v0, v1, a);
+}
+
+vec3 sample_scaling(in AnimationGPUChannel ch, float t) {
+    if (ch.scaling_key_count == 0u) return vec3(1.0);
+    uint i; float a = find_key_interval_uint(ch.scaling_key_count, ch.scaling_key_times, t, i);
+    if (a == 0.0 && i == ch.scaling_key_count - 1u) {
+        return vec3(ch.scaling_key_value_x[i], ch.scaling_key_value_y[i], ch.scaling_key_value_z[i]);
+    }
+    vec3 s0 = vec3(ch.scaling_key_value_x[i], ch.scaling_key_value_y[i], ch.scaling_key_value_z[i]);
+    vec3 s1 = vec3(ch.scaling_key_value_x[i+1u], ch.scaling_key_value_y[i+1u], ch.scaling_key_value_z[i+1u]);
+    return mix(s0, s1, a);
+}
+
+vec4 quat_slerp(vec4 a, vec4 b, float t) {
+    float cosom = dot(a, b);
+    if (cosom < 0.0) { b = -b; cosom = -cosom; }
+    const float THRESH = 0.9995;
+    if (cosom > THRESH) {
+        // linear interpolation to avoid numeric issues
+        vec4 res = a + t*(b - a);
+        return normalize(res);
+    }
+    float omega = acos(clamp(cosom, -1.0, 1.0));
+    float sinom = sin(omega);
+    float s1 = sin((1.0 - t) * omega) / sinom;
+    float s2 = sin(t * omega) / sinom;
+    return a * s1 + b * s2;
+}
+
+vec4 sample_rotation(in AnimationGPUChannel ch, float t) {
+    if (ch.rotation_key_count == 0u) return vec4(0.0, 0.0, 0.0, 1.0);
+    uint i; float a = find_key_interval_uint(ch.rotation_key_count, ch.rotation_key_times, t, i);
+    vec4 q0 = vec4(ch.rotation_key_value_x[i], ch.rotation_key_value_y[i], ch.rotation_key_value_z[i], ch.rotation_key_value_w[i]);
+    q0 = normalize(q0);
+    if (a == 0.0 && i == ch.rotation_key_count - 1u) return q0;
+    vec4 q1 = vec4(ch.rotation_key_value_x[i+1u], ch.rotation_key_value_y[i+1u], ch.rotation_key_value_z[i+1u], ch.rotation_key_value_w[i+1u]);
+    q1 = normalize(q1);
+    return quat_slerp(q0, q1, a);
+}
+
+// Find the animation channel index that targets the given armature node, or return UINT_MAX if none
+uint find_channel_for_node(uint node_index) {
+    uint maxCount = min(u_AnimationChannelCount, MAX_ANIMATION_CHANNELS);
+    for (uint ci = 0u; ci < maxCount; ++ci) {
+        AnimationGPUChannel ach = animation_data.animation[ci];
+        if (ach.armature_element_index == node_index) {
+            // ensure this channel actually contains keys (otherwise it's unused)
+            if (ach.position_key_count == 0u && ach.rotation_key_count == 0u && ach.scaling_key_count == 0u) continue;
+            return ci;
+        }
+    }
+
+    return uint(-1);
+}
 
 void main() {
     // Each invocation processes one bone index (mapped from dispatch groups in the host).
@@ -86,13 +218,21 @@ void main() {
 
     uint current_armature_index = armature_starting_index;
     mat4 current_transform = mat4(1.0);
-    // Walk up the parent chain, multiplying parent transforms on the left so
-    // that the final transform is the global transform for the node.
-    // The CPU-side code sets the root node's parent_index equal to its own
-    // index (HARDCODED_ROOT_INDEX == 0), so we stop when a node's
-    // parent_index equals the node index itself.
+    // Walk up the parent chain, sampling animation channels per-node to
+    // compute the local transform for each node and accumulate global transform.
     while (true) {
-        current_transform = armature_data.armature[current_armature_index].transform * current_transform;
+        // Attempt to sample animation for this node at time u_DeltaTime (time is provided in animation ticks by the CPU)
+        uint ch_idx = find_channel_for_node(current_armature_index);
+        mat4 local = armature_data.armature[current_armature_index].transform;
+        if (ch_idx != uint(-1)) {
+            AnimationGPUChannel ch = animation_data.animation[ch_idx];
+            vec3 pos = sample_position(ch, u_DeltaTime);
+            vec4 rot = sample_rotation(ch, u_DeltaTime);
+            vec3 scl = sample_scaling(ch, u_DeltaTime);
+            local = mat4_from_trs(pos, rot, scl);
+        }
+
+        current_transform = local * current_transform;
         uint parent_index = armature_data.armature[current_armature_index].parent_index;
         if (parent_index == current_armature_index) {
             break; // reached root
