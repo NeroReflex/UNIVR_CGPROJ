@@ -68,6 +68,13 @@ std::shared_ptr<Animation> SceneElement::getCurrentAnimation() const noexcept {
     return it->second;
 }
 
+std::optional<std::string> SceneElement::getCurrentAnimationName(void) const noexcept {
+    if (!m_animation_status.has_value()) {
+        return std::nullopt;
+    }
+
+    return m_animation_status->getName();
+}
 bool SceneElement::startAnimation(const std::string& name) noexcept {
     if (m_animation_status.has_value()) {
         std::cout << "Animation " << m_animation_status->getName() << " is already playing, cannot start another animation (" << name << ")" << std::endl;
@@ -697,6 +704,12 @@ void Scene::foreachMesh(std::function<void(const Mesh&)> fn) const noexcept {
     for (const auto& element : m_elements) {
         element.second->foreachMesh(fn);
     }
+}
+
+std::optional<std::string> Scene::getRunningAnimationName(const SceneElementReference& element_ref) const noexcept {
+    const auto it = m_elements.find(element_ref);
+    if (it == m_elements.end()) return std::nullopt;
+    return it->second->getCurrentAnimationName();
 }
 
 void Scene::setAmbientLight(const AmbientLight& ambient_light) noexcept {

@@ -539,8 +539,10 @@ int main(int argc, char **argv)
         scene->render(pipeline.get());
 
         if (minotaur_ref.has_value() && minotaur_animation_name.has_value()) {
-            if (scene->startAnimation(minotaur_ref.value(), minotaur_animation_name.value())) {
-                std::cout << "Started 'Jump' animation on Minotaur" << std::endl;
+            if (!scene->getRunningAnimationName(minotaur_ref.value()).has_value()) {
+                if (scene->startAnimation(minotaur_ref.value(), minotaur_animation_name.value())) {
+                    std::cout << "Started 'Jump' animation on Minotaur" << std::endl;
+                }
             }
         }
 

@@ -73,6 +73,8 @@ public:
 
     std::shared_ptr<Animation> getCurrentAnimation(void) const noexcept;
 
+    std::optional<std::string> getCurrentAnimationName(void) const noexcept;
+
     inline std::shared_ptr<Armature> getArmature(void) const noexcept { return m_skeleton->getArmature(); }
 
     inline std::shared_ptr<SkeletonTree> getSkeleton(void) const noexcept { return m_skeleton; }
@@ -159,6 +161,9 @@ public:
         const std::string& animation_name
     ) noexcept;
 
+    std::optional<std::string> getRunningAnimationName(
+        const SceneElementReference& element_ref
+    ) const noexcept;
     std::optional<std::string> getAnimationName(
         const SceneElementReference& element_ref,
         size_t index
