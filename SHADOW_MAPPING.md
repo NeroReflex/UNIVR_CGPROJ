@@ -46,6 +46,8 @@ void main() {
 }
 ```
 
+Per avere ombre coerenti con gli oggetti animati è tuttavia necessario usare gli stessi dati, e preferibilmente lo stesso vertex shader usato per il rendering del modello animato nel framebuffer finale.
+
 ### Shadowmap per una luce direzionale
 
 ![Directional Shadowmap](relazione/dir_shadowmap.png "Shadowmap per una luce direzionale")
@@ -67,7 +69,6 @@ In generale il progrema della visibilità è risolto in un subset della intera s
 Nel progetto ho usato:
 
 ```c
-// set up light view/proj matrices (use minus sign to position the light "backwards" along its direction)
 const auto camera_pos = camera->getCameraPosition();
 const auto light_distance = camera->getFarPlane();
 const glm::vec3 light_pos = camera_pos - (
@@ -81,7 +82,6 @@ const glm::mat4 light_view = glm::lookAt(
 
 const auto sqrt_3 = static_cast<glm::float32>(1.73205080757);
 const glm::float32 aspect = 1.0f;
-// const glm::float32 top = camera->getFarPlane();
 const glm::float32 top = camera->getFarPlane() / 2.0f;
 const glm::float32 bottom = -top;
 const glm::float32 right = top * aspect;
