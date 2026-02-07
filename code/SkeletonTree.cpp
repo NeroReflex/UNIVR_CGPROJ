@@ -58,9 +58,10 @@ SkeletonTree* SkeletonTree::CreateSkeletonTree(
     return new SkeletonTree(std::move(armature), original_buffer, per_frame_buffer);
 }
 
-void SkeletonTree::bind(GLuint bindingPoint) const noexcept {
-    if (m_BonesPerFrameBuffer == 0) return;
-    CHECK_GL_ERROR(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bindingPoint, m_BonesPerFrameBuffer));
+void SkeletonTree::bind(GLint bindingPoint) const noexcept {
+    if (m_BonesPerFrameBuffer < 0) return;
+
+    CHECK_GL_ERROR(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(bindingPoint), m_BonesPerFrameBuffer));
 }
 
 bool SkeletonTree::addBone(

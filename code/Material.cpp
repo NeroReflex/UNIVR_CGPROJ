@@ -18,9 +18,9 @@ Material::Material(
 }
 
 void Material::bindRenderState(
-    GLuint diffuse_color_location,
-    GLuint specular_color_location,
-    GLuint material_uniform_location,
+    GLint diffuse_color_location,
+    GLint specular_color_location,
+    GLint material_uniform_location,
     GLint shininess_location
 ) const noexcept {
     const auto diffuse_texture = getDiffuseTexture();
@@ -30,7 +30,7 @@ void Material::bindRenderState(
     if (diffuse_texture) {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, diffuse_texture->getTextureId());
-    
+
         material_flags |= 0x00000001;
     } else {
         // ensure unit 0 has no texture bound
@@ -62,19 +62,19 @@ void Material::bindRenderState(
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    if (diffuse_color_location != 0) {
+    if (diffuse_color_location >= 0) {
         glUniform3fv(diffuse_color_location, 1, glm::value_ptr(m_diffuse_color));
     }
 
-    if (specular_color_location != 0) {
+    if (specular_color_location >= 0) {
         glUniform3fv(specular_color_location, 1, glm::value_ptr(m_specular_color));
     }
 
-    if (material_uniform_location != 0) {
+    if (material_uniform_location >= 0) {
         glUniform1ui(material_uniform_location, material_flags);
     }
 
-    if (shininess_location != 0) {
+    if (shininess_location >= 0) {
         glUniform1f(shininess_location, m_shininess);
     }
 }

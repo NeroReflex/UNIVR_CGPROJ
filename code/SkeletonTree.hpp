@@ -42,8 +42,12 @@ public:
 
     SkeletonTree& operator=(const SkeletonTree&) = delete;
 
-    // Bind the internal SSBO to the given shader storage binding point.
-    void bind(GLuint bindingPoint) const noexcept;
+    /**
+    * Bind the internal SSBO to the given shader storage binding point.
+    * 
+    * WARNING: callers can pass -1 for "not found"!!!
+    */
+    void bind(GLint bindingPoint) const noexcept;
 
     /**
      * Add a bone to the skeleton tree if not already present.

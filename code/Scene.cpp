@@ -212,7 +212,10 @@ static std::shared_ptr<Animation> process_animation(
         const auto animated_bone_name = std::string(animated_bone->mNodeName.C_Str());
 
         const auto armature_element_index_opt = meshes_armature->findArmatureNodeByName(animated_bone_name);
-        assert(armature_element_index_opt.has_value() && "Animation channel node not found in armature");
+        if (!armature_element_index_opt.has_value()) {
+            std::cerr << "Warning: Animation channel '" << animated_bone_name << "' not found in armature; skipping channel." << std::endl;
+            continue;
+        }
 
         const auto debug = glm::max(animated_bone->mNumPositionKeys, glm::max(animated_bone->mNumRotationKeys, animated_bone->mNumScalingKeys));
         max_key_per_channel = glm::max(max_key_per_channel, debug);
@@ -407,7 +410,7 @@ std::optional<SceneElementReference> Scene::load_asset(
                     const glm::vec3 &n = computed_normals[vi];
                     dest->normal_x = n.x;
                     dest->normal_y = n.y;
-                    dest->normal_y = n.z;
+                    dest->normal_z = n.z;
                 }
 
                 // texcoord
@@ -563,6 +566,12 @@ std::optional<SceneElementReference> Scene::load_asset(
 
         // store the animation
         animations_map[animation_name] = animation_shared_ptr;
+    }
+
+    // Diagnostic logging: report skeleton and animation channel counts
+    {
+        const auto bone_count = skeleton_tree->getBoneCount();
+        std::cout << "Loaded element '" << name << "' with " << meshes.size() << " meshes, " << bone_count << " bones, " << animations_map.size() << " animations." << std::endl;
     }
 
     m_elements[name] = std::move(

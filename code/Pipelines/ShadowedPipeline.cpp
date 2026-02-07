@@ -318,10 +318,10 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                         const glm::mat4 ls = light_space_matrix * model_matrix;
                         m_depth_only_program->uniformMat4x4("u_CustomGLPositionMatrix", ls);
                         mesh.draw(
-                            0,
-                            0,
-                            0,
-                            0,
+                            -1,
+                            -1,
+                            -1,
+                            -1,
                             depth_skeleton_binding
                         );
                     });
@@ -405,10 +405,10 @@ void ShadowedPipeline::render(const Scene *const scene) noexcept {
                         const glm::mat4 ls = light_space_matrix * model_matrix;
                         m_depth_only_program->uniformMat4x4("u_CustomGLPositionMatrix", ls);
                         mesh.draw(
-                            0,
-                            0,
-                            0,
-                            0,
+                            -1,
+                            -1,
+                            -1,
+                            -1,
                             depth_skeleton_binding
                         );
                     });

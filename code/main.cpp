@@ -18,10 +18,43 @@
 #include <sstream>
 #include <iostream>
 #include <memory>
+#include <cstdio>
 
 // settings
 static const unsigned int SCR_WIDTH = 800;
 static const unsigned int SCR_HEIGHT = 600;
+
+static void gl_debug(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
+    const char* src = "UNKNOWN";
+    const char* typ = "UNKNOWN";
+    const char* sev = "UNKNOWN";
+    switch (source) {
+        case GL_DEBUG_SOURCE_API: src = "API"; break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM: src = "WINDOW_SYSTEM"; break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER: src = "SHADER_COMPILER"; break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY: src = "THIRD_PARTY"; break;
+        case GL_DEBUG_SOURCE_APPLICATION: src = "APPLICATION"; break;
+        case GL_DEBUG_SOURCE_OTHER: src = "OTHER"; break;
+    }
+    switch (type) {
+        case GL_DEBUG_TYPE_ERROR: typ = "ERROR"; break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: typ = "DEPRECATED"; break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR: typ = "UNDEFINED_BEHAVIOR"; break;
+        case GL_DEBUG_TYPE_PORTABILITY: typ = "PORTABILITY"; break;
+        case GL_DEBUG_TYPE_PERFORMANCE: typ = "PERFORMANCE"; break;
+        case GL_DEBUG_TYPE_MARKER: typ = "MARKER"; break;
+        case GL_DEBUG_TYPE_PUSH_GROUP: typ = "PUSH_GROUP"; break;
+        case GL_DEBUG_TYPE_POP_GROUP: typ = "POP_GROUP"; break;
+        case GL_DEBUG_TYPE_OTHER: typ = "OTHER"; break;
+    }
+    switch (severity) {
+        case GL_DEBUG_SEVERITY_HIGH: sev = "HIGH"; break;
+        case GL_DEBUG_SEVERITY_MEDIUM: sev = "MEDIUM"; break;
+        case GL_DEBUG_SEVERITY_LOW: sev = "LOW"; break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION: sev = "NOTIFICATION"; break;
+    }
+    fprintf(stderr, "GL DEBUG %s | %s | %s | id=%u : %s\n", src, typ, sev, id, message);
+}
 
 int main(int argc, char **argv)
 {
@@ -76,6 +109,17 @@ int main(int argc, char **argv)
         SDL_Quit();
         return -1;
     }
+
+    //if (glDebugMessageCallback) {
+    //    glEnable(GL_DEBUG_OUTPUT);
+    //    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    //
+    //    // Register callback through the driver-provided entry point
+    //    glDebugMessageCallback((GLDEBUGPROC)gl_debug, nullptr);
+    //
+    //    // Allow all messages (we'll filter in the callback if desired)
+    //    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+    //}
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -554,7 +598,7 @@ int main(int argc, char **argv)
 
                 if (minotaur_last_end_ticks == 0 || (currentTicks - minotaur_last_end_ticks) >= 2000u) {
                     if (scene->startAnimation(minotaur_ref.value(), minotaur_animation_name.value())) {
-                        std::cout << "Started 'Jump' animation on Minotaur" << std::endl;
+                        std::cout << "Started '" << minotaur_animation_name.value() << "' animation on Minotaur" << std::endl;
                     }
                 }
             }
