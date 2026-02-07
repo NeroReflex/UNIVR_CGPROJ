@@ -253,9 +253,21 @@ result += u_LightColor * vDiffuse * NdotL * shadow;
 La formula sopra è valida per luci direzionali, quelle coniche e puntiformi seguono un principio simile:
 
 ```c
-result += u_LightColor * vDiffuse *  NdotL *  attenuation * coneIntensity * shadow;
+result += u_LightColor * vDiffuse * NdotL * attenuation * coneIntensity * shadow;
 ```
 
 ma il calcolo dell'ombreggiatura e il principio generale rimangono invariati: il risultato finale sono fotogrammi dove le luci generano ombre:
 
 ![Spotlight](relazione/spotlight.png "Spotlight")
+
+## Conclusioni
+
+Shadow mapping è una tecnica relativamente veloce da implementare, ma generare ombre di elevata qualità risulta complesso, specialmente per luci direzionali e spesso si rende necessario ricorrere a versioni più avanzate dell'algoritmo come ad esempio cascading shadow mapping che genera shadowmap con risoluzioni adeguate alla distanza degli oggetti rispetto alla camera.
+
+Un ulteriore svantaggio è che la tecnica non prevede la generazione di "soft shadows" in modo accurato, e l'unico modo di avere quel tipo di ombre è tramite PCF su shadowmap ad elevata risoluzione, quindi con un dispendio di memoria notevole.
+
+Dal punto di vista delle performance la tecnica ha una incidenza notevole sul framerate dell'applicazione in quanto tutti gli oggetti che contribuiscono all'ombra vanno renderizzati, per ogni luce, incrementando quindi il numero di triangoli processati.
+
+Per ridurre il numero di triangoli di cui si esegue il rendering esistono due strade: pre-computare la visibilità degli oggetti ed eseguire il draw solo degli oggetti che influenzano la scena, ma questo significa mantenere diverse strutture dati per ogni tipo di luce; oppure usare LoD di mesh (versioni delle mesh che rappresentano lo stesso oggetto con numero diverso di triangoli) questo però costringe chi scrive il codice a decidere se il LoD è quello dell'oggetto rispetto alla camera, con possibili deformazioni delle ombre di oggetti lontani oppure rispetto alla sorgente luminosa, renderizzando più triangoli.
+
+In conclusione quindi l'utilizzo di questa tecnica richiede una stretta collaborazione tra gli sviluppatori del motore di rendering e gli artisti che sviluppano i modelli 3D che formano la scena da visualizzare per ottenere un buon rapporto tra impatto sulle prestazioni, dispendio di memoria e qualità del prodotto del rendering.
