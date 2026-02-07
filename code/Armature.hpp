@@ -15,8 +15,6 @@
 
 class SkeletonTree;
 
-#define NODE_IS_NOT_BONE -1
-
 struct ArmatureGPUElement {
     glm::mat4 transform;
 

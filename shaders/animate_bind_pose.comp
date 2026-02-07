@@ -4,12 +4,6 @@ precision highp float;
 
 layout (local_size_x = 32u, local_size_y = 1) in;
 
-#define NODE_IS_NOT_BONE -1
-
-#define MAX_ANIMATION_KEYS_PER_CHANNEL 64u
-// Must match CPU-side MAX_ANIMATION_CHANNELS
-#define MAX_ANIMATION_CHANNELS 128u
-
 struct SkeletonGPUElement {
     mat4 offset_matrix;
 
