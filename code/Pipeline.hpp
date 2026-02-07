@@ -3,6 +3,8 @@
 #include "Program.hpp"
 #include "Framebuffer.hpp"
 
+#include <functional>
+
 class Scene;
 
 class Pipeline {
