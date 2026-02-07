@@ -110,18 +110,8 @@ uint32_t ArmatureNode::write_armature_data(
 
     const auto current_node_index = nodes_count;
     ++nodes_count;
-    armature_node_to_index_map.insert(
-        std::pair<ArmatureNodeRef, uint32_t>(
-            m_NodeRef,
-            current_node_index
-        )
-    );
-    armature_node_to_index.insert(
-        std::pair<uintptr_t, uint32_t>(
-            this_node_ptr,
-            current_node_index
-        )
-    );
+    armature_node_to_index_map[m_NodeRef] = current_node_index;
+    armature_node_to_index[this_node_ptr] = current_node_index;
     armature_node_name_to_index_map[m_Name] = armature_node_to_index[this_node_ptr];
 
     ArmatureGPUElement gpu_element = {

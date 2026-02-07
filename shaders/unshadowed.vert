@@ -22,15 +22,8 @@ layout(location = 8) in float in_vBone_weight_2;
 layout(location = 9) in uint in_vBone_index_3;
 layout(location = 10) in float in_vBone_weight_3;
 
-// Skeleton GPU layout: matches `SkeletonGPUElement` in C++ (offset_matrix + parent + padding)
-struct SkeletonGPUElement {
-    mat4 offset_matrix;
-
-    uint armature_node_index;
-};
-
 layout(std430, binding = 0) buffer SkeletonBuffer {
-    SkeletonGPUElement bones[];
+    mat4 offset_matrix[];
 } skeleton;
 
 layout(location = 0) uniform mat4 u_MVP;
@@ -52,16 +45,12 @@ void main() {
 
     bool anyWeight = false;
 
-    // Safe access: cache the SSBO length and test weight first to avoid
-    // out-of-bounds indexing into `skeleton.bones[]` which can stall the GPU.
-    uint nbones = uint(skeleton.bones.length());
     for (int i = 0; i < 4; ++i) {
         uint bi = idxs[i];
         float w = wts[i];
         if (w <= 0.0) continue;
         if (bi == BONE_IS_ROOT) continue;
-        if (bi >= nbones) continue;
-        mat4 bm = skeleton.bones[bi].offset_matrix;
+        mat4 bm = skeleton.offset_matrix[bi];
         skinnedPos += bm * vec4(in_vPosition_modelspace, 1.0) * w;
         skinnedNormal += mat3(bm) * in_vNormal_modelspace * w;
         anyWeight = true;

@@ -49,7 +49,7 @@ SkeletonTree* SkeletonTree::CreateSkeletonTree(
     CHECK_GL_ERROR(glBindBuffer(GL_SHADER_STORAGE_BUFFER, per_frame_buffer));
     CHECK_GL_ERROR(glBufferData(
         GL_SHADER_STORAGE_BUFFER,
-        static_cast<GLsizeiptr>(MAX_BONES * sizeof(SkeletonGPUElement)),
+        static_cast<GLsizeiptr>(MAX_BONES * sizeof(glm::mat4)),
         nullptr,
         GL_DYNAMIC_DRAW
     ));
@@ -95,22 +95,8 @@ bool SkeletonTree::addBone(
         CHECK_GL_ERROR(glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0));
     }
 
-    // HACK: Update the per-frame SSBO with the same data for now, since we don't have any animation yet. This will be updated every frame later on.
-    SkeletonGPUElement bone_data_stub(bone_data);
-    bone_data_stub.offset_matrix = glm::mat4(1.0f); // Identity matrix for now.
-    {
-        CHECK_GL_ERROR(glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_BonesPerFrameBuffer));
-        CHECK_GL_ERROR(glBufferSubData(
-            GL_SHADER_STORAGE_BUFFER,
-            static_cast<GLsizeiptr>(m_BonesCount * sizeof(SkeletonGPUElement)),
-            sizeof(SkeletonGPUElement),
-            &bone_data_stub
-        ));
-        CHECK_GL_ERROR(glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0));
-    }
-
     // Store the bone name to index mapping.
-    m_BonesNameToIndex.insert(std::tuple(armature_node_ref, m_BonesCount));
+    m_BonesNameToIndex[armature_node_ref] = m_BonesCount;
 
     ++m_BonesCount;
 
