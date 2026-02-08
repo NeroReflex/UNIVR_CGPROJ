@@ -4,7 +4,7 @@ Repository da condividere per l'esame di programmazione grafica.
 
 Denis Benato - VR473444
 
-Nelle release di Github sono presenti le versioni PDF della relazione e la descrizione dello shadow mapping.
+Nelle release di Github sono presenti le versioni PDF della relazione e la descrizione dello shadow mapping, ma le immagini sono fuori posto :(
 
 ## Relazione Integrazione
 
