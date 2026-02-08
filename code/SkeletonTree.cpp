@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#define MAX_BONES 128u
+#define MAX_BONES 1024u
 
 SkeletonTree::SkeletonTree(
     std::shared_ptr<Armature>&& armature,
@@ -74,6 +74,7 @@ bool SkeletonTree::addBone(
     }
 
     const auto armature_node_index_opt = m_armature->findArmatureNode(armature_node_ref);
+    //assert(armature_node_index_opt.has_value() && "Armature node reference not found in armature when adding bone to skeleton tree");
     if (!armature_node_index_opt.has_value()) {
         std::cerr << "Failed to find armature node for bone with ref " << armature_node_ref << std::endl;
         return false;
