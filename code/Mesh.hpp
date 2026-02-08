@@ -62,6 +62,8 @@ public:
 
     inline const glm::mat4& getModelMatrix() const noexcept { return m_model_matrix; }
 
+    inline void setModelMatrix(const glm::mat4& m) noexcept { m_model_matrix = m; }
+
     static GLuint CreateVertexBuffer(const void *const data, GLsizeiptr size) noexcept;
 
     static GLuint CreateElementBuffer(const void *const data, GLsizeiptr size) noexcept;

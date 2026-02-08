@@ -52,6 +52,21 @@ void SceneElement::foreachMesh(std::function<void(const Mesh&)> fn) const noexce
     }
 }
 
+void SceneElement::setModelMatrix(const glm::mat4& model) noexcept {
+    for (auto& mesh : m_meshes) {
+        if (mesh) mesh->setModelMatrix(model);
+    }
+}
+
+void SceneElement::translateMeshes(const glm::vec3& translation) noexcept {
+    for (auto& mesh : m_meshes) {
+        if (!mesh) continue;
+        const glm::mat4 cur = mesh->getModelMatrix();
+        const glm::mat4 next = glm::translate(cur, translation);
+        mesh->setModelMatrix(next);
+    }
+}
+
 bool SceneElement::hasAnimations(void) const noexcept {
     return !m_animations.empty();
 }
@@ -804,6 +819,24 @@ void Scene::update(double deltaTime) noexcept {
             m_bind_pose_compute_program->dispatchCompute(groups_x, 1, 1);
         }
     }
+}
+
+void Scene::setElementTranslation(const SceneElementReference& element_ref, const glm::vec3& translation) noexcept {
+    auto it = m_elements.find(element_ref);
+    if (it == m_elements.end()) {
+        std::cerr << "Scene element " << element_ref << " not found." << std::endl;
+        return;
+    }
+
+    SceneElement *const element = it->second.get();
+    element->translateMeshes(translation);
+}
+
+std::vector<SceneElementReference> Scene::listElements() const noexcept {
+    std::vector<SceneElementReference> out;
+    out.reserve(m_elements.size());
+    for (const auto &kv : m_elements) out.push_back(kv.first);
+    return out;
 }
 
 bool Scene::startAnimation(

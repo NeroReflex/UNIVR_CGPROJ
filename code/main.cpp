@@ -19,6 +19,8 @@
 #include <iostream>
 #include <memory>
 #include <cstdio>
+#include <vector>
+#include <string>
 
 // settings
 static const unsigned int SCR_WIDTH = 800;
@@ -162,16 +164,6 @@ int main(int argc, char **argv)
     const auto custom_model_ref = scene->load_asset("main_model", argv[1]);
     assert(custom_model_ref.has_value() && "Failed to load main 3D asset");
 
-    // HACK: se trovo il minotauro lo carico per testare le animazioni
-    std::optional<SceneElementReference> minotaur_ref;
-    std::optional<std::string> minotaur_animation_name;
-    if (std::filesystem::exists("animazioni/Minotaur@Jump.FBX")) {
-        minotaur_ref = scene->load_asset("minotaur", "animazioni/Minotaur@Jump.FBX");
-        minotaur_animation_name = scene->getAnimationName(minotaur_ref.value(), 0);
-        assert(minotaur_ref.has_value() && "Failed to load Minotaur asset");
-        assert(minotaur_animation_name.has_value() && "Minotaur asset has no animations");
-    }
-
     scene->setAmbientLight(
         AmbientLight(
             glm::vec3(0.2f, 0.2f, 0.2f),
@@ -239,6 +231,9 @@ int main(int argc, char **argv)
     bool player_spot_enabled = true;
     bool ambient_enabled = true;
 
+    static char cli_command_buf[1024] = "";
+    std::vector<std::string> imgui_console;
+
     bool running = true;
     uint32_t lastTicks = SDL_GetTicks();
     // Track Minotaur animation end time to insert a delay between loops (ms)
@@ -280,8 +275,10 @@ int main(int argc, char **argv)
                 }
             }
 
-            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_l) {
+            if (event.type == SDL_KEYDOWN && (event.key.keysym.sym == SDLK_LCTRL || event.key.keysym.sym == SDLK_RCTRL)) {
                 camera_locked = !camera_locked;
+                if (camera_locked) imgui_console.push_back("Camera locked (Ctrl)");
+                else imgui_console.push_back("Camera unlocked (Ctrl)");
             }
         }
 
@@ -577,6 +574,100 @@ int main(int argc, char **argv)
             scene->setConeLight("PlayerSpot", new_player_spotlight);
         }
 
+        // Close the main 'Imgui' window and open separate windows for Assets and Console
+        ImGui::End();
+
+        // Separate Console/CLI window
+        if (ImGui::Begin("Console")) {
+            ImGui::TextUnformatted("Enter commands (e.g. load <name> <path>):");
+            if (ImGui::InputText("Command", cli_command_buf, IM_ARRAYSIZE(cli_command_buf), ImGuiInputTextFlags_EnterReturnsTrue)) {
+                std::string cmd(cli_command_buf);
+                std::istringstream iss(cmd);
+                std::string token;
+                std::vector<std::string> tokens;
+                while (iss >> token) tokens.push_back(token);
+                    if (!tokens.empty()) {
+                    if (tokens[0] == "load" && tokens.size() >= 3) {
+                        std::string name = tokens[1];
+                        std::string path = tokens[2];
+                        for (size_t i = 3; i < tokens.size(); ++i) { path += " "; path += tokens[i]; }
+                        auto ref = scene->load_asset(name, path.c_str());
+                        if (ref.has_value()) imgui_console.push_back("Loaded " + name + ": " + path);
+                        else imgui_console.push_back("CLI load failed: " + name + " -> " + path);
+                    } else if (tokens[0] == "move" && tokens.size() == 5) {
+                        // move <asset_name> x y z  -> set element translation
+                        std::string name = tokens[1];
+                        try {
+                            const float x = std::stof(tokens[2]);
+                            const float y = std::stof(tokens[3]);
+                            const float z = std::stof(tokens[4]);
+                            scene->setElementTranslation(name, glm::vec3(x, y, z));
+                            imgui_console.push_back("Moved asset " + name + " to (" + tokens[2] + ", " + tokens[3] + ", " + tokens[4] + ")");
+                        } catch (...) {
+                            imgui_console.push_back(std::string("Invalid move parameters for command: ") + cmd);
+                        }
+                    } else if (tokens[0] == "play" && tokens.size() == 3) {
+                        // play <asset_name> <animation_index>
+                        std::string name = tokens[1];
+                        try {
+                            const size_t idx = static_cast<size_t>(std::stoul(tokens[2]));
+                            const auto anim_name_opt = scene->getAnimationName(name, idx);
+                            if (!anim_name_opt.has_value()) {
+                                imgui_console.push_back("Animation index out of range for asset: " + name);
+                            } else {
+                                const std::string anim_name = anim_name_opt.value();
+                                if (scene->startAnimation(name, anim_name)) {
+                                    imgui_console.push_back(std::string("Started ") + tokens[2] + "s animation '" + anim_name + "'");
+                                } else {
+                                    imgui_console.push_back(std::string("Failed to start animation '") + anim_name + "' on " + name);
+                                }
+                            }
+                        } catch (...) {
+                            imgui_console.push_back(std::string("Invalid animation index for command: ") + cmd);
+                        }
+                    } else if (tokens[0] == "list") {
+                        // list -> list loaded models and their animations
+                        const auto elems = scene->listElements();
+                        if (elems.empty()) {
+                            imgui_console.push_back("No loaded models");
+                        } else {
+                            for (const auto &el : elems) {
+                                std::string line = std::string("Model: ") + el + " - Animations: ";
+                                // attempt to enumerate animation names
+                                size_t ai = 0;
+                                bool first = true;
+                                while (true) {
+                                    const auto name_opt = scene->getAnimationName(el, ai);
+                                    if (!name_opt.has_value()) break;
+                                    if (!first) line += ", ";
+                                    line += name_opt.value();
+                                    first = false;
+                                    ++ai;
+                                }
+                                if (ai == 0) line += "(none)";
+                                imgui_console.push_back(line);
+                            }
+                        }
+                    } else if (tokens[0] == "lock") {
+                        camera_locked = true;
+                        imgui_console.push_back("Camera locked");
+                    } else if (tokens[0] == "unlock") {
+                        camera_locked = false;
+                        imgui_console.push_back("Camera unlocked");
+                    } else {
+                        imgui_console.push_back(std::string("Unknown command: ") + cmd);
+                    }
+                }
+                cli_command_buf[0] = '\0';
+            }
+
+            ImGui::Separator();
+            ImGui::BeginChild("ConsoleOutput", ImVec2(0, 200), true);
+            for (const auto &line : imgui_console) {
+                ImGui::TextUnformatted(line.c_str());
+            }
+            ImGui::EndChild();
+        }
         ImGui::End();
 
         // Update the scene (animations, etc.)
@@ -584,25 +675,6 @@ int main(int argc, char **argv)
 
         // Render the scene
         scene->render(pipeline.get());
-
-        if (minotaur_ref.has_value() && minotaur_animation_name.has_value()) {
-            const auto running = scene->getRunningAnimationName(minotaur_ref.value());
-            if (running.has_value()) {
-                minotaur_was_running = true;
-            } else {
-                // If the animation just finished, record its end time
-                if (minotaur_was_running) {
-                    minotaur_last_end_ticks = currentTicks;
-                    minotaur_was_running = false;
-                }
-
-                if (minotaur_last_end_ticks == 0 || (currentTicks - minotaur_last_end_ticks) >= 2000u) {
-                    if (scene->startAnimation(minotaur_ref.value(), minotaur_animation_name.value())) {
-                        std::cout << "Started '" << minotaur_animation_name.value() << "' animation on Minotaur" << std::endl;
-                    }
-                }
-            }
-        }
 
         // Render ImGui
         ImGui::Render();

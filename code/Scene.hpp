@@ -70,6 +70,8 @@ public:
     SceneElement& operator=(const SceneElement&) = delete;
 
     void foreachMesh(std::function<void(const Mesh&)> fn) const noexcept;
+    void setModelMatrix(const glm::mat4& model) noexcept;
+    void translateMeshes(const glm::vec3& translation) noexcept;
 
     std::shared_ptr<Animation> getCurrentAnimation(void) const noexcept;
 
@@ -171,6 +173,10 @@ public:
     ) const noexcept;
 
     static Scene* CreateScene() noexcept;
+
+    void setElementTranslation(const SceneElementReference& element_ref, const glm::vec3& translation) noexcept;
+
+    std::vector<SceneElementReference> listElements() const noexcept;
 
 private:
     std::shared_ptr<Texture> assimp_load_texture(
